@@ -31,7 +31,8 @@ void setup() {
   pinMode(rightMotor2DirPin1, OUTPUT);
   pinMode(rightMotor2DirPin2, OUTPUT);
 
-  pinMode(EnablePin, OUTPUT);
+  pinMode(EnablePin1, OUTPUT);
+  pinMode(EnablePin2, OUTPUT);
 
   // --- TOF Sensor Setup ---
   Wire.begin();
@@ -52,7 +53,8 @@ void setup() {
 }
 
 void loop() {
-  digitalWrite(EnablePin, HIGH);
+  digitalWrite(EnablePin1, HIGH);
+  digitalWrite(EnablePin2, HIGH);
   /* static bool rotated = false;
   if (!rotated) {
     rotateRobot(90.0); // Rotate 90 degrees (positive for right turn, negative for left)
@@ -78,15 +80,17 @@ void loop() {
   Serial.print(" m, Right Distance: ");
   Serial.print(rightDistance, 4);
   Serial.println(" m"); */
-  Serial.print("Left Count: ");
+/*   Serial.print("Left Count: ");
   Serial.print(leftCount,4);
   Serial.print("        ");
   Serial.print("Right Count: ");
-  Serial.print(rightCount,4);
+  Serial.print(rightCount,4); */
 
   /* rotateLeft(90,100);
   moveForwardUntilObstacle(); */
 
+  moveForward(0.5, 100); // Move forward for 0.5 meters at base PWM of 100
+  delay(1000); // Wait for 1 second
 
   delay(100);
 }

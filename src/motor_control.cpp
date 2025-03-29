@@ -221,7 +221,8 @@ void moveForwardUntilObstacle() {
     encoderRight1.write(0);
 
     // Start moving forward
-    digitalWrite(EnablePin, HIGH);  // Enable motors
+    digitalWrite(EnablePin1, HIGH);
+    digitalWrite(EnablePin2, HIGH);  // Enable motors
     moveLeftMotorsForward(150);
     moveRightMotorsForward(150);
 
