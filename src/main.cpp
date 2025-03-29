@@ -84,6 +84,9 @@ void loop() {
   Serial.print("Right Count: ");
   Serial.print(rightCount,4);
 
+  /* rotateLeft(90,100);
+  moveForwardUntilObstacle(); */
+
 
   delay(100);
 }
