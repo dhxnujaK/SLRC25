@@ -14,15 +14,25 @@ extern Encoder encoderRight1;   // Right Motor 1 encoder
 extern Encoder encoderRight2;   // Right Motor 2 encoder
 
 // --- Motor Driver Pins (TB6612FNG) ---
-// Left motors:
-const int leftMotorPWMPin   = 5;  // PWM control
-const int leftMotorDirPin1  = 7;  // Direction pin 1
-const int leftMotorDirPin2  = 8;  // Direction pin 2
+// Left Motor 1:
+const int leftMotor1PWMPin   = 5;  // PWM control
+const int leftMotor1DirPin1  = 7;  // Direction pin 1
+const int leftMotor1DirPin2  = 8;  // Direction pin 2
 
-// Right motors:
-const int rightMotorPWMPin  = 6;  // PWM control
-const int rightMotorDirPin1 = 9;  // Direction pin 1
-const int rightMotorDirPin2 = 10; // Direction pin 2
+// Left Motor 2:
+const int leftMotor2PWMPin   = 6;  // PWM control
+const int leftMotor2DirPin1  = 9;  // Direction pin 1
+const int leftMotor2DirPin2  = 10; // Direction pin 2
+
+// Right Motor 1:
+const int rightMotor1PWMPin  = 11;  // PWM control
+const int rightMotor1DirPin1 = 12;  // Direction pin 1
+const int rightMotor1DirPin2 = 13;  // Direction pin 2
+
+// Right Motor 2:
+const int rightMotor2PWMPin  = 14;  // PWM control
+const int rightMotor2DirPin1 = 15;  // Direction pin 1
+const int rightMotor2DirPin2 = 16;  // Direction pin 2
 
 // --- Odometry and Geometry Parameters ---
 const float wheelDiameter = 0.065;    // meters (e.g., 65 mm)
@@ -33,11 +43,10 @@ const float distancePerPulse = wheelCircumference / (pulsesPerRevolution * gearR
 
 // For a differential-drive robot:
 const float axleLength = 0.15;  // meters (distance between left and right wheels)
-const int EnablePin = 13; // Enable pin for TB6612FNG motor driver
+const int EnablePin = 17;       // Enable pin for TB6612FNG motor driver
 
 // TOF
-#define TOF1_XSHUT  12  // Changed from 7 to 12 to avoid conflict with leftMotorDirPin1
+#define TOF1_XSHUT  18
 extern VL53L0X tof1;
-
 
 #endif

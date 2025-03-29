@@ -11,15 +11,25 @@ void setup() {
   Serial.begin(9600);
 
   // --- Set up motor driver pins ---
-  // Left motors:
-  pinMode(leftMotorPWMPin, OUTPUT);
-  pinMode(leftMotorDirPin1, OUTPUT);
-  pinMode(leftMotorDirPin2, OUTPUT);
+  // Left Motor 1:
+  pinMode(leftMotor1PWMPin, OUTPUT);
+  pinMode(leftMotor1DirPin1, OUTPUT);
+  pinMode(leftMotor1DirPin2, OUTPUT);
 
-  // Right motors:
-  pinMode(rightMotorPWMPin, OUTPUT);
-  pinMode(rightMotorDirPin1, OUTPUT);
-  pinMode(rightMotorDirPin2, OUTPUT);
+  // Left Motor 2:
+  pinMode(leftMotor2PWMPin, OUTPUT);
+  pinMode(leftMotor2DirPin1, OUTPUT);
+  pinMode(leftMotor2DirPin2, OUTPUT);
+
+  // Right Motor 1:
+  pinMode(rightMotor1PWMPin, OUTPUT);
+  pinMode(rightMotor1DirPin1, OUTPUT);
+  pinMode(rightMotor1DirPin2, OUTPUT);
+
+  // Right Motor 2:
+  pinMode(rightMotor2PWMPin, OUTPUT);
+  pinMode(rightMotor2DirPin1, OUTPUT);
+  pinMode(rightMotor2DirPin2, OUTPUT);
 
   pinMode(EnablePin, OUTPUT);
 
