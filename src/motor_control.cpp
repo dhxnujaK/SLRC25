@@ -24,31 +24,75 @@ PID leftPID(&leftInput, &leftOutput, &leftSetpoint, Kp, Ki, Kd, DIRECT);
 PID rightPID(&rightInput, &rightOutput, &rightSetpoint, Kp, Ki, Kd, DIRECT);
 
 // --- Individual Motor Control Functions ---
-void moveLeftMotorsForward(int pwmVal) {
-    digitalWrite(leftMotorDirPin1, HIGH);
-    digitalWrite(leftMotorDirPin2, LOW);
-    analogWrite(leftMotorPWMPin, pwmVal);
+void moveLeftMotor1Forward(int pwmVal) {
+    digitalWrite(leftMotor1DirPin1, HIGH);
+    digitalWrite(leftMotor1DirPin2, LOW);
+    analogWrite(leftMotor1PWMPin, pwmVal);
 }
 
-void moveLeftMotorsBackward(int pwmVal) {
-    digitalWrite(leftMotorDirPin1, LOW);
-    digitalWrite(leftMotorDirPin2, HIGH);
-    analogWrite(leftMotorPWMPin, pwmVal);
+void moveLeftMotor1Backward(int pwmVal) {
+    digitalWrite(leftMotor1DirPin1, LOW);
+    digitalWrite(leftMotor1DirPin2, HIGH);
+    analogWrite(leftMotor1PWMPin, pwmVal);
 }
 
-void moveRightMotorsForward(int pwmVal) {
-    digitalWrite(rightMotorDirPin1, HIGH);
-    digitalWrite(rightMotorDirPin2, LOW);
-    analogWrite(rightMotorPWMPin, pwmVal);
+void moveLeftMotor2Forward(int pwmVal) {
+    digitalWrite(leftMotor2DirPin1, HIGH);
+    digitalWrite(leftMotor2DirPin2, LOW);
+    analogWrite(leftMotor2PWMPin, pwmVal);
 }
 
-void moveRightMotorsBackward(int pwmVal) {
-    digitalWrite(rightMotorDirPin1, LOW);
-    digitalWrite(rightMotorDirPin2, HIGH);
-    analogWrite(rightMotorPWMPin, pwmVal);
+void moveLeftMotor2Backward(int pwmVal) {
+    digitalWrite(leftMotor2DirPin1, LOW);
+    digitalWrite(leftMotor2DirPin2, HIGH);
+    analogWrite(leftMotor2PWMPin, pwmVal);
+}
+
+void moveRightMotor1Forward(int pwmVal) {
+    digitalWrite(rightMotor1DirPin1, HIGH);
+    digitalWrite(rightMotor1DirPin2, LOW);
+    analogWrite(rightMotor1PWMPin, pwmVal);
+}
+
+void moveRightMotor1Backward(int pwmVal) {
+    digitalWrite(rightMotor1DirPin1, LOW);
+    digitalWrite(rightMotor1DirPin2, HIGH);
+    analogWrite(rightMotor1PWMPin, pwmVal);
+}
+
+void moveRightMotor2Forward(int pwmVal) {
+    digitalWrite(rightMotor2DirPin1, HIGH);
+    digitalWrite(rightMotor2DirPin2, LOW);
+    analogWrite(rightMotor2PWMPin, pwmVal);
+}
+
+void moveRightMotor2Backward(int pwmVal) {
+    digitalWrite(rightMotor2DirPin1, LOW);
+    digitalWrite(rightMotor2DirPin2, HIGH);
+    analogWrite(rightMotor2PWMPin, pwmVal);
 }
 
 // --- Combined Movement Functions ---
+void moveLeftMotorsForward(int pwmVal) {
+    moveLeftMotor1Forward(pwmVal);
+    moveLeftMotor2Forward(pwmVal);
+}
+
+void moveLeftMotorsBackward(int pwmVal) {
+    moveLeftMotor1Backward(pwmVal);
+    moveLeftMotor2Backward(pwmVal);
+}
+
+void moveRightMotorsForward(int pwmVal) {
+    moveRightMotor1Forward(pwmVal);
+    moveRightMotor2Forward(pwmVal);
+}
+
+void moveRightMotorsBackward(int pwmVal) {
+    moveRightMotor1Backward(pwmVal);
+    moveRightMotor2Backward(pwmVal);
+}
+
 // --- PID-Controlled Movement ---
 void moveForward(int distance, int basePWM) {
     long targetPulses = distance / distancePerPulse;
@@ -234,10 +278,16 @@ void moveBackwardDistance(float distance) {
 
 // --- Stop Motors Function ---
 void stopMotors() {
-    digitalWrite(leftMotorDirPin1, LOW);
-    digitalWrite(leftMotorDirPin2, LOW);
-    digitalWrite(rightMotorDirPin1, LOW);
-    digitalWrite(rightMotorDirPin2, LOW);
-    analogWrite(leftMotorPWMPin, 0);
-    analogWrite(rightMotorPWMPin, 0);
+    digitalWrite(leftMotor1DirPin1, LOW);
+    digitalWrite(leftMotor1DirPin2, LOW);
+    digitalWrite(leftMotor2DirPin1, LOW);
+    digitalWrite(leftMotor2DirPin2, LOW);
+    digitalWrite(rightMotor1DirPin1, LOW);
+    digitalWrite(rightMotor1DirPin2, LOW);
+    digitalWrite(rightMotor2DirPin1, LOW);
+    digitalWrite(rightMotor2DirPin2, LOW);
+    analogWrite(leftMotor1PWMPin, 0);
+    analogWrite(leftMotor2PWMPin, 0);
+    analogWrite(rightMotor1PWMPin, 0);
+    analogWrite(rightMotor2PWMPin, 0);
 }
