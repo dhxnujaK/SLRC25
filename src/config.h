@@ -2,6 +2,7 @@
 #define CONFIG_H
 
 #include <Encoder.h>
+#include <VL53L0X.h>
 
 // --- Encoder Setup ---
 // Left motors
@@ -33,6 +34,10 @@ const float distancePerPulse = wheelCircumference / (pulsesPerRevolution * gearR
 // For a differential-drive robot:
 const float axleLength = 0.15;  // meters (distance between left and right wheels)
 const int EnablePin = 13; // Enable pin for TB6612FNG motor driver
+
+// TOF
+#define TOF1_XSHUT  7
+extern VL53L0X tof1;
 
 
 #endif

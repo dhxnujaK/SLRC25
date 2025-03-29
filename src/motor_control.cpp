@@ -2,7 +2,11 @@
 #include "config.h"
 #include <Arduino.h>
 #include <PID_v1.h>
+#include <Wire.h>
+#include <VL53L0X.h>
 
+// ToF Sensor
+// VL53L0X tof1;
 
 // --- Encoder Definitions ---
 Encoder encoderLeft1(2, 3);    // Left Motor 1 encoder channels
@@ -160,6 +164,57 @@ void rotateRight(float angle, int basePWM) {
     stopMotors();
 }
 
+void moveForwardUntilObstacle() {
+    long initialLeftEncoder = encoderLeft1.read();
+    long initialRightEncoder = encoderRight1.read();
+    
+    // Start moving forward
+    moveForward(150);
+
+    while (true) {
+        int distance = tof1.readRangeSingleMillimeters();
+        Serial.print("Distance: "); Serial.println(distance);
+
+        if (distance < 200) { // Stop when obstacle is closer than 20 cm
+            stopMotors();
+            break;
+        }
+    }
+
+    // Calculate distance traveled using encoder counts
+    long finalLeftEncoder = encoderLeft1.read();
+    long finalRightEncoder = encoderRight1.read();
+    long averagePulses = ((finalLeftEncoder - initialLeftEncoder) + (finalRightEncoder - initialRightEncoder)) / 2;
+    
+    // Convert encoder pulses to distance
+    float distanceTraveled = averagePulses * distancePerPulse;
+    Serial.print("Moved Forward: "); Serial.print(distanceTraveled); Serial.println(" mm");
+
+    // Move Backward same distance
+    moveBackwardDistance(distanceTraveled);
+}
+
+void moveBackwardDistance(float distance) {
+    long targetPulses = distance / distancePerPulse;
+    
+    long initialLeftEncoder = encoderLeft1.read();
+    long initialRightEncoder = encoderRight1.read();
+
+    moveBackward(150);
+
+    while (true) {
+        long leftPulses = abs(encoderLeft1.read() - initialLeftEncoder);
+        long rightPulses = abs(encoderRight1.read() - initialRightEncoder);
+        long avgPulses = (leftPulses + rightPulses) / 2;
+
+        if (avgPulses >= targetPulses) {
+            stopMotors();
+            break;
+        }
+    }
+
+    Serial.println("Returned to starting point!");
+}
 
 // --- Stop Motors Function ---
 void stopMotors() {

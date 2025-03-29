@@ -1,7 +1,11 @@
 #include <Arduino.h>
 #include <Encoder.h>
+#include <Wire.h>
+#include <VL53L0X.h>
 #include "config.h"
 #include "motor_control.h"
+
+VL53L0X tof1;
 
 void setup() {
   Serial.begin(9600);
@@ -20,6 +24,21 @@ void setup() {
   pinMode(EnablePin, OUTPUT);
 
   // No additional encoder setup is needed when using the Encoder library.
+
+  // --- TOF Sensor Setup ---
+  Wire.begin();
+
+  // Assign unique addresses to multiple sensors
+  pinMode(TOF1_XSHUT, OUTPUT);
+
+  digitalWrite(TOF1_XSHUT, LOW);
+  delay(10);
+
+  digitalWrite(TOF1_XSHUT, HIGH);
+  delay(10);
+  tof1.setAddress(0x30);  // Assign new address
+
+  tof1.init();
 }
 
 void loop() {

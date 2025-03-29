@@ -13,6 +13,8 @@ void moveRightForward(int pwmVal);
 
 void rotateLeft(int pwmVal);
 void rotateRight(int pwmVal);
+void moveForwardUntilObstacle();
+void moveBackwardDistance(float distance);
 void stopMotors();
 
 #endif // MOTOR_CONTROL_H
