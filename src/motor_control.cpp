@@ -1,12 +1,23 @@
 #include "motor_control.h"
 #include "config.h"
 #include <Arduino.h>
+#include <PID_v1.h>
+
 
 // --- Encoder Definitions ---
 Encoder encoderLeft1(2, 3);    // Left Motor 1 encoder channels
 Encoder encoderLeft2(18, 19);  // Left Motor 2 encoder channels
 Encoder encoderRight1(20, 21); // Right Motor 1 encoder channels
 Encoder encoderRight2(22, 23); // Right Motor 2 encoder channels
+
+// --- PID Variables ---
+double leftInput, leftOutput, leftSetpoint;
+double rightInput, rightOutput, rightSetpoint;
+
+// PID tuning parameters (adjust based on testing)
+double Kp = 2.0, Ki = 0.5, Kd = 0.1;
+PID leftPID(&leftInput, &leftOutput, &leftSetpoint, Kp, Ki, Kd, DIRECT);
+PID rightPID(&rightInput, &rightOutput, &rightSetpoint, Kp, Ki, Kd, DIRECT);
 
 // --- Individual Motor Control Functions ---
 void moveLeftMotorsForward(int pwmVal) {
@@ -34,9 +45,38 @@ void moveRightMotorsBackward(int pwmVal) {
 }
 
 // --- Combined Movement Functions ---
-void moveForward(int pwmVal) {
-    moveLeftMotorsForward(pwmVal);
-    moveRightMotorsForward(pwmVal);
+// --- PID-Controlled Movement ---
+void moveForward(int distance, int basePWM) {
+    long targetPulses = distance / distancePerPulse;
+    
+    encoderLeft1.write(0);
+    encoderLeft2.write(0);
+    encoderRight1.write(0);
+    encoderRight2.write(0);
+    
+    leftSetpoint = rightSetpoint = targetPulses;
+    
+    leftPID.SetMode(AUTOMATIC);
+    rightPID.SetMode(AUTOMATIC);
+
+    while (true) {
+        long leftPulses = (abs(encoderLeft1.read()) + abs(encoderLeft2.read())) / 2;
+        long rightPulses = (abs(encoderRight1.read()) + abs(encoderRight2.read())) / 2;
+
+        leftInput = leftPulses;
+        rightInput = rightPulses;
+
+        leftPID.Compute();
+        rightPID.Compute();
+
+        moveLeftMotorsForward(basePWM + leftOutput);
+        moveRightMotorsForward(basePWM + rightOutput);
+
+        if (leftPulses >= targetPulses && rightPulses >= targetPulses) break;
+        delay(5);
+    }
+
+    stopMotors();
 }
 
 void moveBackward(int pwmVal) {
@@ -53,85 +93,73 @@ void moveRightForward(int pwmVal) {
 }
 
 // --- Rotation Functions ---
-void rotateLeft(float angle, int pwmVal) {
-    // Reset encoder values
+// --- PID-Controlled Rotation ---
+void rotateLeft(float angle, int basePWM) {
+    long targetPulses = (3.1416 * axleLength * (angle / 360.0)) / distancePerPulse;
+
     encoderLeft1.write(0);
     encoderLeft2.write(0);
     encoderRight1.write(0);
     encoderRight2.write(0);
 
-    // Calculate the required wheel travel distance for a given angle
-    float distancePerWheel = 3.1416 * axleLength * (angle / 360.0);
-    long targetPulses = distancePerWheel / distancePerPulse;
+    leftSetpoint = rightSetpoint = targetPulses;
 
-    Serial.print("Rotating Left: ");
-    Serial.print(angle);
-    Serial.print("° (Target pulses per wheel: ");
-    Serial.print(targetPulses);
-    Serial.println(")");
+    leftPID.SetMode(AUTOMATIC);
+    rightPID.SetMode(AUTOMATIC);
 
-    // Start rotation
-    moveLeftMotorsBackward(pwmVal);
-    moveRightMotorsForward(pwmVal);
-
-    // Wait until target pulses are reached
     while (true) {
-        long lCount1 = abs(encoderLeft1.read());
-        long lCount2 = abs(encoderLeft2.read());
-        long rCount1 = abs(encoderRight1.read());
-        long rCount2 = abs(encoderRight2.read());
+        long leftPulses = (abs(encoderLeft1.read()) + abs(encoderLeft2.read())) / 2;
+        long rightPulses = (abs(encoderRight1.read()) + abs(encoderRight2.read())) / 2;
 
-        long leftAvg = (lCount1 + lCount2) / 2;
-        long rightAvg = (rCount1 + rCount2) / 2;
-        long avgCount = (leftAvg + rightAvg) / 2;
+        leftInput = leftPulses;
+        rightInput = rightPulses;
 
-        if (avgCount >= targetPulses) break;
+        leftPID.Compute();
+        rightPID.Compute();
+
+        moveLeftMotorsBackward(basePWM + leftOutput);
+        moveRightMotorsForward(basePWM + rightOutput);
+
+        if (leftPulses >= targetPulses && rightPulses >= targetPulses) break;
         delay(5);
     }
 
     stopMotors();
-    Serial.println("Left rotation complete.");
 }
 
-void rotateRight(float angle, int pwmVal) {
-    // Reset encoder values
+void rotateRight(float angle, int basePWM) {
+    long targetPulses = (3.1416 * axleLength * (angle / 360.0)) / distancePerPulse;
+
     encoderLeft1.write(0);
     encoderLeft2.write(0);
     encoderRight1.write(0);
     encoderRight2.write(0);
 
-    // Calculate the required wheel travel distance for a given angle
-    float distancePerWheel = 3.1416 * axleLength * (angle / 360.0);
-    long targetPulses = distancePerWheel / distancePerPulse;
+    leftSetpoint = rightSetpoint = targetPulses;
 
-    Serial.print("Rotating Right: ");
-    Serial.print(angle);
-    Serial.print("° (Target pulses per wheel: ");
-    Serial.print(targetPulses);
-    Serial.println(")");
+    leftPID.SetMode(AUTOMATIC);
+    rightPID.SetMode(AUTOMATIC);
 
-    // Start rotation
-    moveLeftMotorsForward(pwmVal);
-    moveRightMotorsBackward(pwmVal);
-
-    // Wait until target pulses are reached
     while (true) {
-        long lCount1 = abs(encoderLeft1.read());
-        long lCount2 = abs(encoderLeft2.read());
-        long rCount1 = abs(encoderRight1.read());
-        long rCount2 = abs(encoderRight2.read());
+        long leftPulses = (abs(encoderLeft1.read()) + abs(encoderLeft2.read())) / 2;
+        long rightPulses = (abs(encoderRight1.read()) + abs(encoderRight2.read())) / 2;
 
-        long leftAvg = (lCount1 + lCount2) / 2;
-        long rightAvg = (rCount1 + rCount2) / 2;
-        long avgCount = (leftAvg + rightAvg) / 2;
+        leftInput = leftPulses;
+        rightInput = rightPulses;
 
-        if (avgCount >= targetPulses) break;
+        leftPID.Compute();
+        rightPID.Compute();
+
+        moveLeftMotorsForward(basePWM + leftOutput);
+        moveRightMotorsBackward(basePWM + rightOutput);
+
+        if (leftPulses >= targetPulses && rightPulses >= targetPulses) break;
         delay(5);
     }
 
     stopMotors();
-    Serial.println("Right rotation complete.");
 }
+
 
 // --- Stop Motors Function ---
 void stopMotors() {

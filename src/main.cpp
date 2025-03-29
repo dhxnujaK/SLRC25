@@ -42,8 +42,8 @@ void loop() {
   long rightCount = (rightCount1 + rightCount2) / 2;
 
   // Convert counts to distance traveled (meters)
-  float leftDistance  = leftCount * distancePerPulse;
-  float rightDistance = rightCount * distancePerPulse;
+  /* float leftDistance  = leftCount * distancePerPulse;
+  float rightDistance = rightCount * distancePerPulse; */
 
 /*   Serial.print("Left Distance: ");
   Serial.print(leftDistance, 4);
@@ -52,7 +52,10 @@ void loop() {
   Serial.println(" m"); */
   Serial.print("Left Count: ");
   Serial.print(leftCount,4);
-  Serial.println();
+  Serial.print("        ");
+  Serial.print("Right Count: ");
+  Serial.print(rightCount,4);
+
 
   delay(100);
 }
