@@ -38,7 +38,9 @@ void setup() {
   delay(10);
   tof1.setAddress(0x30);  // Assign new address
 
-  tof1.init();
+  if (!tof1.init()) {
+    Serial.println("ToF sensor initialization failed!");
+  }
 }
 
 void loop() {

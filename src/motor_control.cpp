@@ -52,14 +52,15 @@ void moveRightMotorsBackward(int pwmVal) {
 // --- PID-Controlled Movement ---
 void moveForward(int distance, int basePWM) {
     long targetPulses = distance / distancePerPulse;
-    
+    unsigned long startTime = millis();  // Timeout mechanism
+
     encoderLeft1.write(0);
     encoderLeft2.write(0);
     encoderRight1.write(0);
     encoderRight2.write(0);
-    
+
     leftSetpoint = rightSetpoint = targetPulses;
-    
+
     leftPID.SetMode(AUTOMATIC);
     rightPID.SetMode(AUTOMATIC);
 
@@ -76,7 +77,7 @@ void moveForward(int distance, int basePWM) {
         moveLeftMotorsForward(basePWM + leftOutput);
         moveRightMotorsForward(basePWM + rightOutput);
 
-        if (leftPulses >= targetPulses && rightPulses >= targetPulses) break;
+        if ((leftPulses >= targetPulses && rightPulses >= targetPulses) || (millis() - startTime > 5000)) break;  // Timeout after 5 seconds
         delay(5);
     }
 
@@ -100,6 +101,7 @@ void moveRightForward(int pwmVal) {
 // --- PID-Controlled Rotation ---
 void rotateLeft(float angle, int basePWM) {
     long targetPulses = (3.1416 * axleLength * (angle / 360.0)) / distancePerPulse;
+    unsigned long startTime = millis();  // Timeout mechanism
 
     encoderLeft1.write(0);
     encoderLeft2.write(0);
@@ -124,7 +126,7 @@ void rotateLeft(float angle, int basePWM) {
         moveLeftMotorsBackward(basePWM + leftOutput);
         moveRightMotorsForward(basePWM + rightOutput);
 
-        if (leftPulses >= targetPulses && rightPulses >= targetPulses) break;
+        if ((leftPulses >= targetPulses && rightPulses >= targetPulses) || (millis() - startTime > 5000)) break;  // Timeout after 5 seconds
         delay(5);
     }
 
@@ -165,32 +167,46 @@ void rotateRight(float angle, int basePWM) {
 }
 
 void moveForwardUntilObstacle() {
-    long initialLeftEncoder = encoderLeft1.read();
-    long initialRightEncoder = encoderRight1.read();
-    
+    if (!tof1.init()) {  // Ensure proper initialization of tof1
+        Serial.println("ToF sensor initialization failed!");
+        return;
+    }
+
+    // Reset encoders to track distance traveled
+    encoderLeft1.write(0);
+    encoderRight1.write(0);
+
     // Start moving forward
-    moveForward(150);
+    digitalWrite(EnablePin, HIGH);  // Enable motors
+    moveLeftMotorsForward(150);
+    moveRightMotorsForward(150);
 
     while (true) {
         int distance = tof1.readRangeSingleMillimeters();
-        Serial.print("Distance: "); Serial.println(distance);
+        Serial.print("Distance: ");
+        Serial.println(distance);
 
-        if (distance < 200) { // Stop when obstacle is closer than 20 cm
+        // Stop if an obstacle is detected within 20 cm
+        if (distance < 200) {
             stopMotors();
             break;
         }
+
+        delay(10);  // Small delay to avoid excessive sensor polling
     }
 
     // Calculate distance traveled using encoder counts
-    long finalLeftEncoder = encoderLeft1.read();
-    long finalRightEncoder = encoderRight1.read();
-    long averagePulses = ((finalLeftEncoder - initialLeftEncoder) + (finalRightEncoder - initialRightEncoder)) / 2;
-    
+    long leftPulses = abs(encoderLeft1.read());
+    long rightPulses = abs(encoderRight1.read());
+    long averagePulses = (leftPulses + rightPulses) / 2;
+
     // Convert encoder pulses to distance
     float distanceTraveled = averagePulses * distancePerPulse;
-    Serial.print("Moved Forward: "); Serial.print(distanceTraveled); Serial.println(" mm");
+    Serial.print("Moved Forward: ");
+    Serial.print(distanceTraveled);
+    Serial.println(" mm");
 
-    // Move Backward same distance
+    // Optionally, move backward the same distance
     moveBackwardDistance(distanceTraveled);
 }
 

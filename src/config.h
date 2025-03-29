@@ -36,7 +36,7 @@ const float axleLength = 0.15;  // meters (distance between left and right wheel
 const int EnablePin = 13; // Enable pin for TB6612FNG motor driver
 
 // TOF
-#define TOF1_XSHUT  7
+#define TOF1_XSHUT  12  // Changed from 7 to 12 to avoid conflict with leftMotorDirPin1
 extern VL53L0X tof1;
 
 
