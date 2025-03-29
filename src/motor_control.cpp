@@ -9,10 +9,10 @@
 // VL53L0X tof1;
 
 // --- Encoder Definitions ---
-Encoder encoderLeft1(2, 3);    // Left Motor 1 encoder channels
-Encoder encoderLeft2(18, 19);  // Left Motor 2 encoder channels
-Encoder encoderRight1(20, 21); // Right Motor 1 encoder channels
-Encoder encoderRight2(22, 23); // Right Motor 2 encoder channels
+Encoder encoderLeft1(34, 35);    // Left Motor 1 encoder channels
+Encoder encoderLeft2(37, 36);  // Left Motor 2 encoder channels
+Encoder encoderRight1(26, 27); // Right Motor 1 encoder channels
+Encoder encoderRight2(29, 28); // Right Motor 2 encoder channels
 
 // --- PID Variables ---
 double leftInput, leftOutput, leftSetpoint;
@@ -74,6 +74,7 @@ void moveRightMotor2Backward(int pwmVal) {
 
 // --- Combined Movement Functions ---
 void moveLeftMotorsForward(int pwmVal) {
+    Serial.println("Moving left motors forward");
     moveLeftMotor1Forward(pwmVal);
     moveLeftMotor2Forward(pwmVal);
 }
@@ -84,6 +85,7 @@ void moveLeftMotorsBackward(int pwmVal) {
 }
 
 void moveRightMotorsForward(int pwmVal) {
+    Serial.println("Moving right motors forward");
     moveRightMotor1Forward(pwmVal);
     moveRightMotor2Forward(pwmVal);
 }

@@ -16,8 +16,8 @@ extern Encoder encoderRight2;   // Right Motor 2 encoder
 // --- Motor Driver Pins (TB6612FNG) ---
 // Left Motor 1:
 const int leftMotor1PWMPin   = 10;  // PWM control
-const int leftMotor1DirPin1  = 30;  // Direction pin 1
-const int leftMotor1DirPin2  = 31;  // Direction pin 2
+const int leftMotor1DirPin1  = 31;  // Direction pin 1
+const int leftMotor1DirPin2  = 30;  // Direction pin 2
 
 // Left Motor 2:
 const int leftMotor2PWMPin   = 9;  // PWM control
@@ -31,8 +31,8 @@ const int rightMotor1DirPin2 = 39;  // Direction pin 2
 
 // Right Motor 2:
 const int rightMotor2PWMPin  = 11;  // PWM control
-const int rightMotor2DirPin1 = 23;  // Direction pin 1
-const int rightMotor2DirPin2 = 22;  // Direction pin 2
+const int rightMotor2DirPin1 = 22;  // Direction pin 1
+const int rightMotor2DirPin2 = 23;  // Direction pin 2
 
 // --- Odometry and Geometry Parameters ---
 const float wheelDiameter = 0.065;    // meters (e.g., 65 mm)
@@ -46,7 +46,7 @@ const float axleLength = 0.15;  // meters (distance between left and right wheel
 const int EnablePin1 = 25;       // Enable pin for TB6612FNG motor driver
 const int EnablePin2 = 24;
 // TOF
-#define TOF1_XSHUT  18
+#define TOF1_XSHUT  41
 extern VL53L0X tof1;
 
 #endif
