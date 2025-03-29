@@ -47,14 +47,84 @@ void moveRightForward(int pwmVal) {
 }
 
 // --- Rotation Functions ---
-void rotateLeft(int pwmVal) {
+void rotateLeft(float angle, int pwmVal) {
+    // Reset encoder values
+    encoderLeft1.write(0);
+    encoderLeft2.write(0);
+    encoderRight1.write(0);
+    encoderRight2.write(0);
+
+    // Calculate the required wheel travel distance for a given angle
+    float distancePerWheel = 3.1416 * axleLength * (angle / 360.0);
+    long targetPulses = distancePerWheel / distancePerPulse;
+
+    Serial.print("Rotating Left: ");
+    Serial.print(angle);
+    Serial.print("° (Target pulses per wheel: ");
+    Serial.print(targetPulses);
+    Serial.println(")");
+
+    // Start rotation
     moveLeftMotorsBackward(pwmVal);
     moveRightMotorsForward(pwmVal);
+
+    // Wait until target pulses are reached
+    while (true) {
+        long lCount1 = abs(encoderLeft1.read());
+        long lCount2 = abs(encoderLeft2.read());
+        long rCount1 = abs(encoderRight1.read());
+        long rCount2 = abs(encoderRight2.read());
+
+        long leftAvg = (lCount1 + lCount2) / 2;
+        long rightAvg = (rCount1 + rCount2) / 2;
+        long avgCount = (leftAvg + rightAvg) / 2;
+
+        if (avgCount >= targetPulses) break;
+        delay(5);
+    }
+
+    stopMotors();
+    Serial.println("Left rotation complete.");
 }
 
-void rotateRight(int pwmVal) {
+void rotateRight(float angle, int pwmVal) {
+    // Reset encoder values
+    encoderLeft1.write(0);
+    encoderLeft2.write(0);
+    encoderRight1.write(0);
+    encoderRight2.write(0);
+
+    // Calculate the required wheel travel distance for a given angle
+    float distancePerWheel = 3.1416 * axleLength * (angle / 360.0);
+    long targetPulses = distancePerWheel / distancePerPulse;
+
+    Serial.print("Rotating Right: ");
+    Serial.print(angle);
+    Serial.print("° (Target pulses per wheel: ");
+    Serial.print(targetPulses);
+    Serial.println(")");
+
+    // Start rotation
     moveLeftMotorsForward(pwmVal);
     moveRightMotorsBackward(pwmVal);
+
+    // Wait until target pulses are reached
+    while (true) {
+        long lCount1 = abs(encoderLeft1.read());
+        long lCount2 = abs(encoderLeft2.read());
+        long rCount1 = abs(encoderRight1.read());
+        long rCount2 = abs(encoderRight2.read());
+
+        long leftAvg = (lCount1 + lCount2) / 2;
+        long rightAvg = (rCount1 + rCount2) / 2;
+        long avgCount = (leftAvg + rightAvg) / 2;
+
+        if (avgCount >= targetPulses) break;
+        delay(5);
+    }
+
+    stopMotors();
+    Serial.println("Right rotation complete.");
 }
 
 // --- Stop Motors Function ---
