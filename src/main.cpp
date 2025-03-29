@@ -2,12 +2,12 @@
 
 // --- Encoder Setup ---
 // Left motors
-/* Encoder encoderLeft1;    // Left Motor 1 encoder
-Encoder encoderLeft2;    // Left Motor 2 encoder
+extern Encoder encoderLeft1;    // Left Motor 1 encoder
+extern Encoder encoderLeft2;    // Left Motor 2 encoder
 
 // Right motors
-Encoder encoderRight1;   // Right Motor 1 encoder
-Encoder encoderRight2;   // Right Motor 2 encoder */
+extern Encoder encoderRight1;   // Right Motor 1 encoder
+extern Encoder encoderRight2;   // Right Motor 2 encoder
 
 // --- Motor Driver Pins (TB6612FNG) ---
 // Left Motor 1:
@@ -98,20 +98,20 @@ void stopAllMotors() {
 // --- Main Loop ---
 void loop() {
   // Read encoder values
-/*   long encL1 = encoderLeft1.read();
+  long encL1 = encoderLeft1.read();
   long encL2 = encoderLeft2.read();
   long encR1 = encoderRight1.read();
-  long encR2 = encoderRight2.read(); */
+  long encR2 = encoderRight2.read();
 
   // Display encoder values
-/*   Serial.print("Encoders - L1:");
+  Serial.print("Encoders - L1:");
   Serial.print(encL1);
   Serial.print(" L2:");
   Serial.print(encL2);
   Serial.print(" R1:");
   Serial.print(encR1);
   Serial.print(" R2:");
-  Serial.println(encR2); */
+  Serial.println(encR2);
 
   // Example movement pattern
   setLeftMotors(200);   // Forward left
