@@ -4,6 +4,7 @@
 #include <PID_v1.h>
 #include <Wire.h>
 #include <VL53L0X.h>
+#include "gyroscope.h"
 
 // ToF Sensor
 // VL53L0X tof1;
@@ -135,14 +136,15 @@ void rotateLeft(float angle, int basePWM) {
 
 void rotateRight(float angle, int basePWM) {
     long targetPulses = (3.1416 * axleLength * (angle / 360.0)) / distancePerPulse;
-
+    
     encoderLeft1.write(0);
     encoderLeft2.write(0);
     encoderRight1.write(0);
     encoderRight2.write(0);
+    
+    resetGyroAngle();
 
     leftSetpoint = rightSetpoint = targetPulses;
-
     leftPID.SetMode(AUTOMATIC);
     rightPID.SetMode(AUTOMATIC);
 
@@ -159,7 +161,13 @@ void rotateRight(float angle, int basePWM) {
         moveLeftMotorsForward(basePWM + leftOutput);
         moveRightMotorsBackward(basePWM + rightOutput);
 
-        if (leftPulses >= targetPulses && rightPulses >= targetPulses) break;
+        float filteredAngle = getFilteredAngle();
+        Serial.print("Filtered Gyro Angle: "); Serial.println(filteredAngle);
+
+        if ((leftPulses >= targetPulses && rightPulses >= targetPulses) || fabs(filteredAngle) >= angle) {
+            break;
+        }
+
         delay(5);
     }
 
