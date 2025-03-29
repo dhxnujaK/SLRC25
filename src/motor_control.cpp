@@ -2,6 +2,12 @@
 #include "config.h"
 #include <Arduino.h>
 
+// --- Encoder Definitions ---
+Encoder encoderLeft1(2, 3);    // Left Motor 1 encoder channels
+Encoder encoderLeft2(18, 19);  // Left Motor 2 encoder channels
+Encoder encoderRight1(20, 21); // Right Motor 1 encoder channels
+Encoder encoderRight2(22, 23); // Right Motor 2 encoder channels
+
 // --- Individual Motor Control Functions ---
 void moveLeftMotorsForward(int pwmVal) {
     digitalWrite(leftMotorDirPin1, HIGH);

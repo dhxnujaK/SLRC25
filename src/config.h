@@ -5,12 +5,12 @@
 
 // --- Encoder Setup ---
 // Left motors
-Encoder encoderLeft1(2, 3);    // Left Motor 1 encoder channels
-Encoder encoderLeft2(18, 19);  // Left Motor 2 encoder channels
+extern Encoder encoderLeft1;    // Left Motor 1 encoder
+extern Encoder encoderLeft2;    // Left Motor 2 encoder
 
 // Right motors
-Encoder encoderRight1(20, 21); // Right Motor 1 encoder channels
-Encoder encoderRight2(22, 23); // Right Motor 2 encoder channels
+extern Encoder encoderRight1;   // Right Motor 1 encoder
+extern Encoder encoderRight2;   // Right Motor 2 encoder
 
 // --- Motor Driver Pins (TB6612FNG) ---
 // Left motors:
