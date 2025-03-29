@@ -23,8 +23,6 @@ void setup() {
 
   pinMode(EnablePin, OUTPUT);
 
-  // No additional encoder setup is needed when using the Encoder library.
-
   // --- TOF Sensor Setup ---
   Wire.begin();
 
@@ -44,7 +42,6 @@ void setup() {
 }
 
 void loop() {
-  // For demonstration, rotate the robot by 90° once.
   digitalWrite(EnablePin, HIGH);
   /* static bool rotated = false;
   if (!rotated) {
