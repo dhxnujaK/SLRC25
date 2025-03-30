@@ -1,5 +1,4 @@
 #include <Encoder.h>
-#include <PID_v1.h>
 
 // --- Encoders (All 4) ---
 Encoder encoderLeft1(34, 35);   // Left1
@@ -38,14 +37,6 @@ const int COUNTS_PER_REVOLUTION = 100;    // From encoder specs
 const float GEAR_RATIO = 15;              // Gear reduction ratio
 const float DISTANCE_PER_COUNT = (WHEEL_DIAMETER_CM * PI) / (COUNTS_PER_REVOLUTION * GEAR_RATIO);
 
-// --- PID Control (Left2 & Right2 Only) ---
-double Setpoint, Input, Output;         // PID variables
-double Kp = 0.4, Ki = 0.0, Kd = 0.3;  // Tune these
-PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
-
-int baseSpeed = 90;  // Base PWM speed (0-255)
-
-// ================== MOTOR CONTROL ==================
 void setLeftMotor1Speed(int speed) {
   speed = constrain(speed, -255, 255);
   digitalWrite(leftMotor1DirPin1, speed > 0 ? HIGH : LOW);
@@ -57,7 +48,7 @@ void setLeftMotor2Speed(int speed) {
   speed = constrain(speed, -255, 255);
   digitalWrite(leftMotor2DirPin1, speed > 0 ? HIGH : LOW);
   digitalWrite(leftMotor2DirPin2, speed < 0 ? HIGH : LOW);
-  analogWrite(leftMotor2PWMPin, abs(speed));
+  analogWrite(leftMotor2PWMPin, abs(speed*1.0923));
 }
 
 void setRightMotor1Speed(int speed) {
@@ -74,7 +65,6 @@ void setRightMotor2Speed(int speed) {
   analogWrite(rightMotor2PWMPin, abs(speed));
 }
 
-// ================== UTILITY FUNCTIONS ==================
 void stopAllMotors() {
   setLeftMotor1Speed(0);
   setLeftMotor2Speed(0);
@@ -83,91 +73,17 @@ void stopAllMotors() {
   Serial.println("Motors Stopped");
 }
 
-void moveForward(float distance_cm, int speed = 150) {
-  // Reset encoders
-  encoderLeft1.write(0);
-  encoderLeft2.write(0);
-  encoderRight1.write(0);
-  encoderRight2.write(0);
-
-  long target = distance_cm / DISTANCE_PER_COUNT;
-
-  // Start all motors
+void moveForward(int speed) {
   setLeftMotor1Speed(speed);
   setLeftMotor2Speed(speed);
   setRightMotor1Speed(speed);
   setRightMotor2Speed(speed);
-
-  // Wait until target reached
-  while (abs(encoderLeft2.read()) < target && abs(encoderRight2.read()) < target) {
-    delay(10);
-  }
-
-  stopAllMotors();
+  Serial.println("Moving Forward");
 }
 
-void moveBackward(float distance_cm, int speed = 150) {
-  moveForward(distance_cm, -speed);  // Reuses moveForward with negative speed
-}
-void moveForwardStraightPID(float distance_cm) {
-  // Reset ALL encoders
-  encoderLeft1.write(0);
-  encoderLeft2.write(0);
-  encoderRight1.write(0);
-  encoderRight2.write(0);
-
-  long targetCounts = distance_cm / DISTANCE_PER_COUNT;
-
-  // Start ALL motors at base speed
-  setLeftMotor1Speed(baseSpeed);
-  setLeftMotor2Speed(0);   // PID-adjusted
-  setRightMotor1Speed(baseSpeed);
-  setRightMotor2Speed(0);  // PID-adjusted
-
-  while (true) {
-    // Read Left2 & Right2 for PID (ignore others)
-    noInterrupts();  // Disable interrupts to read encoder values safely
-    long newLeft1 = encoderLeft1.read();
-    long newLeft2 = encoderLeft2.read();
-    long newRight1 = encoderRight1.read();
-    long newRight2 = encoderRight2.read();
-    interrupts();  // Re-enable interrupts
-    long left2 = abs(newLeft2);
-    long right2 = abs(newRight2);
-
-    // Compute PID correction
-    Input = left2 - right2;
-    myPID.Compute();
-
-    // Apply correction ONLY to Left2 & Right2
-    //setLeftMotor2Speed(baseSpeed + Output);  // Slow down if ahead
-    //setRightMotor2Speed(baseSpeed - Output); // Speed up if behind
-
-
-    // Debug output
-    Serial.print("L2: ");
-    Serial.print(left2);
-    Serial.print(" | R2: ");
-    Serial.print(right2);
-    Serial.print(" | PID Out: ");
-    Serial.println(Output);
-
-    // Stop when any motor reaches target
-    if (left2 >= targetCounts || right2 >= targetCounts) {
-      stopAllMotors();
-      break;
-    }
-
-    //delay(3);  // Prevent CPU overload
-  }
-}
-
-
-// ====================== CORE FUNCTIONS ======================
 void setup() {
   Serial.begin(115200);
-
-  // Initialize ALL motor pins
+  Serial.println("Encoder Reading Started");
   pinMode(leftMotor1PWMPin, OUTPUT);
   pinMode(leftMotor1DirPin1, OUTPUT);
   pinMode(leftMotor1DirPin2, OUTPUT);
@@ -189,20 +105,49 @@ void setup() {
   pinMode(EnablePin2, OUTPUT);
   digitalWrite(EnablePin1, HIGH);
   digitalWrite(EnablePin2, HIGH);
-
-  // Configure PID
-  Setpoint = 0;  // Target: Zero difference between Left2/Right2
-  myPID.SetMode(AUTOMATIC);
-  myPID.SetOutputLimits(-30, 30);  // Limit correction to ±50 PWM
-
-  Serial.println("Robot Ready: PID Active on Left2/Right2");
 }
 
 void loop() {
-  // Example: Move forward 1m with PID straightening
-  moveForwardStraightPID(100.0);  // Distance in cm
-  delay(3000);                    // Pause before repeating
+  // Read raw encoder counts
+  long left1Count = encoderLeft1.read();
+  long left2Count = encoderLeft2.read();
+  long right1Count = encoderRight1.read();
+  long right2Count = encoderRight2.read();
+
+  // Calculate distances in centimeters
+  float left1Dist = left1Count * DISTANCE_PER_COUNT;
+  float left2Dist = left2Count * DISTANCE_PER_COUNT;
+  float right1Dist = right1Count * DISTANCE_PER_COUNT;
+  float right2Dist = right2Count * DISTANCE_PER_COUNT;
+
+  // Print all encoder values to serial monitor
+  Serial.print("Left1: ");
+  Serial.print(left1Count);
+  Serial.print(" (");
+  Serial.print(left1Dist);
+  Serial.print(" cm)\t");
+
+  Serial.print("Left2: ");
+  Serial.print(left2Count);
+  Serial.print(" (");
+  Serial.print(left2Dist);
+  Serial.print(" cm)\t");
+
+  Serial.print("Right1: ");
+  Serial.print(right1Count);
+  Serial.print(" (");
+  Serial.print(right1Dist);
+  Serial.print(" cm)\t");
+
+  Serial.print("Right2: ");
+  Serial.print(right2Count);
+  Serial.print(" (");
+  Serial.print(right2Dist);
+  Serial.println(" cm)");
+
+  // Short delay to prevent serial overflow
+  moveForward(50);  // Move forward at speed 100
+  delay(1000);      // Move for 1 second
+  stopAllMotors();  // Stop motors
+  delay(1000);
 }
-
-// ================== MOVEMENT FUNCTIONS ==================
-
