@@ -85,8 +85,10 @@ void moveBackward(int speed) {
 
 // --- TURN BASED ON GYROSCOPE ---
 void turnLeft(int speed, float targetAngle) {
+  targetAngle += 50;
   mpu.update();
   float startYaw = mpu.getAngleZ();
+  float targetYaw = startYaw + targetAngle;
   Serial.print("Turning Left: Target Yaw = ");
   Serial.println(targetAngle);
 
@@ -97,7 +99,7 @@ void turnLeft(int speed, float targetAngle) {
     float currentYaw = mpu.getAngleZ();
     Serial.print("Turning Left: Current Yaw = ");
     Serial.println(currentYaw);
-    if (currentYaw >= targetAngle) {
+    if (currentYaw >= targetYaw) {
       stopAllMotors();
       break;
     }
@@ -106,6 +108,7 @@ void turnLeft(int speed, float targetAngle) {
 }
 
 void turnRight(int speed, float targetAngle) {
+  targetAngle += 50;
   mpu.update();
   float startYaw = mpu.getAngleZ();
   Serial.print("Turning Right: Target Yaw = ");
@@ -163,11 +166,5 @@ void loop() {
   moveForward(90, 30);   // Move forward 30 cm
   delay(500);
   turnLeft(120, 90);      // Turn left by 90 degrees
-  delay(500);
-  moveForward(90, 20);   // Move forward 20 cm
-  delay(500);
-  turnRight(120, 90);     // Turn right by 90 degrees
-  delay(500);
-  stopAllMotors();
   delay(1000);
 }
