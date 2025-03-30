@@ -1,19 +1,19 @@
 #include <Encoder.h>
-#include <Adafruit_MCP23X17.h>
+#include <PID_v1.h>
 
-// Initialize Encoders with specified pins
-Encoder encoderLeft1(34, 35);
-Encoder encoderLeft2(19, 18);
-Encoder encoderRight1(26, 27);
-Encoder encoderRight2(2, 3);
+// --- Encoders (All 4) ---
+Encoder encoderLeft1(34, 35);   // Left1
+Encoder encoderLeft2(19, 18);   // Left2 (PID-controlled)
+Encoder encoderRight1(26, 27);  // Right1
+Encoder encoderRight2(2, 3);    // Right2 (PID-controlled)
 
-// Motor Control Pins
+// --- Motor Pins (All 4) ---
 // Left Motor 1
 const int leftMotor1PWMPin = 10;
 const int leftMotor1DirPin1 = 31;
 const int leftMotor1DirPin2 = 30;
 
-// Left Motor 2
+// Left Motor 2 (PID-controlled)
 const int leftMotor2PWMPin = 9;
 const int leftMotor2DirPin1 = 32;
 const int leftMotor2DirPin2 = 33;
@@ -23,30 +23,30 @@ const int rightMotor1PWMPin = 12;
 const int rightMotor1DirPin1 = 38;
 const int rightMotor1DirPin2 = 39;
 
-// Right Motor 2
+// Right Motor 2 (PID-controlled)
 const int rightMotor2PWMPin = 11;
 const int rightMotor2DirPin1 = 22;
 const int rightMotor2DirPin2 = 23;
 
-// Enable Pins
-const int EnablePin1 = 25;
-const int EnablePin2 = 24;
+// --- Enable Pins ---
+const int EnablePin1 = 25;  // Left motors
+const int EnablePin2 = 24;  // Right motors
 
-// Robot parameters (ADJUST THESE VALUES)
-const float WHEEL_DIAMETER_CM = 4.5;      // Measure your wheel diameter
-const int COUNTS_PER_REVOLUTION = 100;    // From encoder/motor specs
-const float GEAR_RATIO = 15;             // If using gear reduction
-
-// Calculated constants
+// --- Robot Parameters ---
+const float WHEEL_DIAMETER_CM = 4.5;      // Measure your wheel
+const int COUNTS_PER_REVOLUTION = 100;    // From encoder specs
+const float GEAR_RATIO = 15;              // Gear reduction ratio
 const float DISTANCE_PER_COUNT = (WHEEL_DIAMETER_CM * PI) / (COUNTS_PER_REVOLUTION * GEAR_RATIO);
 
-// Encoder positions
-volatile long left1Pos = 0;
-volatile long left2Pos = 0;
-volatile long right1Pos = 0;
-volatile long right2Pos = 0;
+// --- PID Control (Left2 & Right2 Only) ---
+double Setpoint, Input, Output;         // PID variables
+double Kp = 0.2, Ki = 0.03, Kd = 0.4;  // Tune these
+PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
 
-// Motor control functions
+int baseSpeed = 100;  // Base PWM speed (0-255)
+
+// ================== MOVEMENT FUNCTIONS ==================
+// ================== MOTOR CONTROL ==================
 void setLeftMotor1Speed(int speed) {
   speed = constrain(speed, -255, 255);
   digitalWrite(leftMotor1DirPin1, speed > 0 ? HIGH : LOW);
@@ -75,93 +75,94 @@ void setRightMotor2Speed(int speed) {
   analogWrite(rightMotor2PWMPin, abs(speed));
 }
 
-void stopMotors() {
+// ================== UTILITY FUNCTIONS ==================
+void stopAllMotors() {
   setLeftMotor1Speed(0);
   setLeftMotor2Speed(0);
   setRightMotor1Speed(0);
   setRightMotor2Speed(0);
+  Serial.println("Motors Stopped");
+}
+void moveForwardStraightPID(float distance_cm) {
+  // Reset ALL encoders
+  encoderLeft1.write(0);
+  encoderLeft2.write(0);
+  encoderRight1.write(0);
+  encoderRight2.write(0);
+
+  long targetCounts = distance_cm / DISTANCE_PER_COUNT;
+
+  // Start ALL motors at base speed
+  setLeftMotor1Speed(baseSpeed);
+  setLeftMotor2Speed(baseSpeed);   // PID-adjusted
+  setRightMotor1Speed(baseSpeed);
+  setRightMotor2Speed(baseSpeed);  // PID-adjusted
+
+  while (true) {
+    // Read Left2 & Right2 for PID (ignore others)
+    long left2 = abs(encoderLeft2.read());
+    long right2 = abs(encoderRight2.read());
+
+    // Compute PID correction
+    Input = left2 - right2;
+    myPID.Compute();
+
+    // Apply correction ONLY to Left2 & Right2
+    setLeftMotor2Speed(baseSpeed + Output);  // Slow down if ahead
+    setRightMotor2Speed(baseSpeed*1.07 - Output); // Speed up if behind
+
+    // Debug output
+    Serial.print("L2: ");
+    Serial.print(left2);
+    Serial.print(" | R2: ");
+    Serial.print(right2);
+    Serial.print(" | PID Out: ");
+    Serial.println(Output);
+
+    // Stop when any motor reaches target
+    if (left2 >= targetCounts || right2 >= targetCounts) {
+      stopAllMotors();
+      break;
+    }
+
+    delay(10);  // Prevent CPU overload
+  }
 }
 
-void moveForward(float distance_cm, int speed = 50) {
+
+
+void moveForward(float distance_cm, int speed = 70) {
   // Reset encoders
   encoderLeft1.write(0);
   encoderLeft2.write(0);
   encoderRight1.write(0);
   encoderRight2.write(0);
-  
-  // Calculate target counts
-  long target_counts = distance_cm / DISTANCE_PER_COUNT;
-  
-  // Start moving forward
+
+  long target = distance_cm / DISTANCE_PER_COUNT;
+
+  // Start all motors
   setLeftMotor1Speed(speed);
   setLeftMotor2Speed(speed);
   setRightMotor1Speed(speed);
   setRightMotor2Speed(speed);
-  
-  // Wait until target distance is reached
-  while (true) {
-    noInterrupts();
-    long current_left1 = encoderLeft1.read();
-    long current_left2 = encoderLeft2.read();
-    long current_right1 = encoderRight1.read();
-    long current_right2 = encoderRight2.read();
-    interrupts();
-    
-    // Check if any motor has reached the target
-    if (abs(current_left1) >= target_counts || 
-        abs(current_left2) >= target_counts || 
-        abs(current_right1) >= target_counts || 
-        abs(current_right2) >= target_counts) {
-      break;
-    }
-    delay(10); // Small delay to prevent CPU overload
+
+  // Wait until target reached
+  while (abs(encoderLeft2.read()) < target && abs(encoderRight2.read()) < target) {
+    delay(10);
   }
-  
-  // Stop motors
-  stopMotors();
+
+  stopAllMotors();
 }
 
-void moveBackward(float distance_cm, int speed = 50) {
-  // Reset encoders
-  encoderLeft1.write(0);
-  encoderLeft2.write(0);
-  encoderRight1.write(0);
-  encoderRight2.write(0);
-  
-  // Calculate target counts
-  long target_counts = distance_cm / DISTANCE_PER_COUNT;
-  
-  // Start moving backward
-  setLeftMotor1Speed(-speed);
-  setLeftMotor2Speed(-speed);
-  setRightMotor1Speed(-speed);
-  setRightMotor2Speed(-speed);
-  
-  // Wait until target distance is reached
-  while (true) {
-    noInterrupts();
-    long current_left1 = encoderLeft1.read();
-    long current_left2 = encoderLeft2.read();
-    long current_right1 = encoderRight1.read();
-    long current_right2 = encoderRight2.read();
-    interrupts();
-    
-    // Check if any motor has reached the target
-    if (abs(current_left1) >= target_counts || 
-        abs(current_left2) >= target_counts || 
-        abs(current_right1) >= target_counts || 
-        abs(current_right2) >= target_counts) {
-      break;
-    }
-    delay(10); // Small delay to prevent CPU overload
-  }
-  
-  // Stop motors
-  stopMotors();
+void moveBackward(float distance_cm, int speed = 70) {
+  moveForward(distance_cm, -speed);  // Reuses moveForward with negative speed
 }
 
+// ====================== CORE FUNCTIONS ======================
 void setup() {
-  // Initialize motor control pins
+  Serial.begin(115200);
+
+  // Initialize ALL motor pins
   pinMode(leftMotor1PWMPin, OUTPUT);
   pinMode(leftMotor1DirPin1, OUTPUT);
   pinMode(leftMotor1DirPin2, OUTPUT);
@@ -184,62 +185,17 @@ void setup() {
   digitalWrite(EnablePin1, HIGH);
   digitalWrite(EnablePin2, HIGH);
 
-  // Reset encoders to zero position
-  encoderLeft1.write(0);
-  encoderLeft2.write(0);
-  encoderRight1.write(0);
-  encoderRight2.write(0);
+  // Configure PID
+  Setpoint = 0;  // Target: Zero difference between Left2/Right2
+  myPID.SetMode(AUTOMATIC);
+  myPID.SetOutputLimits(-50, 50);  // Limit correction to ±50 PWM
 
-  Serial.begin(115200);
+  Serial.println("Robot Ready: PID Active on Left2/Right2");
 }
 
 void loop() {
-  // Update encoder readings
-  noInterrupts();  // Disable interrupts to read encoder values safely
-  long newLeft1 = encoderLeft1.read();
-  long newLeft2 = encoderLeft2.read();
-  long newRight1 = encoderRight1.read();
-  long newRight2 = encoderRight2.read();
-  interrupts();  // Re-enable interrupts
-
-  // Calculate distances
-  float left1Dist = newLeft1 * DISTANCE_PER_COUNT;
-  float left2Dist = newLeft2 * DISTANCE_PER_COUNT;
-  float right1Dist = newRight1 * DISTANCE_PER_COUNT;
-  float right2Dist = newRight2 * DISTANCE_PER_COUNT;
-
-  // Check if positions have changed
-  if (newLeft1 != left1Pos || newLeft2 != left2Pos || 
-      newRight1 != right1Pos || newRight2 != right2Pos) {
-    left1Pos = newLeft1;
-    left2Pos = newLeft2;
-    right1Pos = newRight1;
-    right2Pos = newRight2;
-
-    // Print distances in centimeters
-    Serial.print("Distances (cm) | L1:");
-    Serial.print(left1Dist, 2);  // 2 decimal places
-    Serial.print(" L2:");
-    Serial.print(left2Dist, 2);
-    Serial.print(" R1:");
-    Serial.print(right1Dist, 2);
-    Serial.print(" R2:");
-    Serial.println(right2Dist, 2);
-  }
-
-  // Example usage in loop (you can remove or modify this)
-  /* static bool hasMoved = false;
-  if (!hasMoved) {
-    moveForward(20.0);  // Move forward 20 cm
-    delay(1000);
-    moveBackward(20.0); // Move backward 20 cm
-    hasMoved = true;
-  } */
-
-  moveForward(20.0);  // Move forward 20 cm
-    delay(1000);
-    moveBackward(20.0);
-
-  // Add small delay to prevent serial overflow
-  delay(1000);
+  // Example: Move forward 1m with PID straightening
+  moveForwardStraightPID(100.0);  // Distance in cm
+  delay(3000);                    // Pause before repeating
 }
+
