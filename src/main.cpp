@@ -1,6 +1,45 @@
 #include <Encoder.h>
 #include <PID_v1.h>
 
+// ================== FIR FILTER DEFINITIONS ==================
+#define FIR_TAPS 5
+
+// Example 5-tap low-pass FIR coefficients
+// Adjust these coefficients as needed.
+float firCoeffs[FIR_TAPS] = {0.1, 0.15, 0.5, 0.15, 0.1};
+
+// Buffers to hold recent encoder values for each motor
+static float left1Buffer[FIR_TAPS]  = {0, 0, 0, 0, 0};
+static float left2Buffer[FIR_TAPS]  = {0, 0, 0, 0, 0};
+static float right1Buffer[FIR_TAPS] = {0, 0, 0, 0, 0};
+static float right2Buffer[FIR_TAPS] = {0, 0, 0, 0, 0};
+
+// Indices for ring buffers
+static int left1Index  = 0;
+static int left2Index  = 0;
+static int right1Index = 0;
+static int right2Index = 0;
+
+// Generic FIR apply function
+float applyFIR(float newSample, float* buffer, float* coeffs, int &index) {
+  // Store new sample
+  buffer[index] = newSample;
+
+  // FIR sum
+  float result = 0.0;
+  int readPos = index;
+  for (int i = 0; i < FIR_TAPS; i++) {
+    result += coeffs[i] * buffer[readPos];
+    // Move backwards in the ring buffer
+    readPos = (readPos - 1 + FIR_TAPS) % FIR_TAPS;
+  }
+
+  // Advance index
+  index = (index + 1) % FIR_TAPS;
+
+  return result;
+}
+
 // --- Encoders (All 4) ---
 Encoder encoderLeft1(34, 35);   // Left1
 Encoder encoderLeft2(19, 18);   // Left2 (PID-controlled)
@@ -132,17 +171,28 @@ void moveForwardStraightPID(float distance_cm) {
     long newRight1 = encoderRight1.read();
     long newRight2 = encoderRight2.read();
     interrupts();  // Re-enable interrupts
-    long left2 = abs(newLeft2);
-    long right2 = abs(newRight2);
+    
+    // Convert to float and apply FIR filter
+    float rawLeft1  = (float)newLeft1;
+    float rawLeft2  = (float)newLeft2;
+    float rawRight1 = (float)newRight1;
+    float rawRight2 = (float)newRight2;
+
+    float filteredLeft1  = applyFIR(rawLeft1,  left1Buffer,  firCoeffs, left1Index);
+    float filteredLeft2  = applyFIR(rawLeft2,  left2Buffer,  firCoeffs, left2Index);
+    float filteredRight1 = applyFIR(rawRight1, right1Buffer, firCoeffs, right1Index);
+    float filteredRight2 = applyFIR(rawRight2, right2Buffer, firCoeffs, right2Index);
+
+    long left2  = labs((long)filteredLeft2);
+    long right2 = labs((long)filteredRight2);
 
     // Compute PID correction
-    Input = left2 - right2;
+    Input = (float)left2 - (float)right2;
     myPID.Compute();
 
     // Apply correction ONLY to Left2 & Right2
-    //setLeftMotor2Speed(baseSpeed + Output);  // Slow down if ahead
-    //setRightMotor2Speed(baseSpeed - Output); // Speed up if behind
-
+    setLeftMotor2Speed(baseSpeed - Output);
+    setRightMotor2Speed(baseSpeed + Output);
 
     // Debug output
     Serial.print("L2: ");
@@ -205,4 +255,3 @@ void loop() {
 }
 
 // ================== MOVEMENT FUNCTIONS ==================
-
