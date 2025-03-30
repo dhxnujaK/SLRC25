@@ -82,10 +82,32 @@ void moveBackward(int speed) {
   setMotorSpeed(-speed, -speed, -speed, -speed);
   Serial.println("Moving Backward");
 }
+void moveBackward(int speed, float distance) {
+  encoderLeft1.write(0);
+  encoderLeft2.write(0);
+  encoderRight1.write(0);
+  encoderRight2.write(0);
+  setMotorSpeed(-speed, -speed, -speed, -speed);
+  Serial.println("Moving Forward");
+  
+  while (true) {
+    long right2Count = abs(encoderRight2.read());
+    long left2Count = abs(encoderLeft2.read());
+    float right2Dist = right2Count * DISTANCE_PER_COUNT;
+    float left2Dist = left2Count * DISTANCE_PER_COUNT;
+    float avgDist = (right2Dist + left2Dist) / 2.0;
+
+    if (avgDist >= distance) {
+      stopAllMotors();
+      break;
+    }
+    delay(10);
+  }
+}
 
 // --- TURN BASED ON GYROSCOPE ---
 void turnLeft(int speed, float targetAngle) {
-  targetAngle += 50;
+  targetAngle += 53.13559;
   mpu.update();
   float startYaw = mpu.getAngleZ();
   float targetYaw = startYaw + targetAngle;
@@ -108,7 +130,7 @@ void turnLeft(int speed, float targetAngle) {
 }
 
 void turnRight(int speed, float targetAngle) {
-  targetAngle += 50;
+  targetAngle += 53.13559;
   mpu.update();
   float startYaw = mpu.getAngleZ();
   Serial.print("Turning Right: Target Yaw = ");
