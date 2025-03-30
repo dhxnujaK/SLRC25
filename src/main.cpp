@@ -1,7 +1,6 @@
 #include <Encoder.h>
 #include <Adafruit_MCP23X17.h>
 
-
 // Initialize Encoders with specified pins
 Encoder encoderLeft1(34, 35);
 Encoder encoderLeft2(19, 18);
@@ -76,6 +75,91 @@ void setRightMotor2Speed(int speed) {
   analogWrite(rightMotor2PWMPin, abs(speed));
 }
 
+void stopMotors() {
+  setLeftMotor1Speed(0);
+  setLeftMotor2Speed(0);
+  setRightMotor1Speed(0);
+  setRightMotor2Speed(0);
+}
+
+void moveForward(float distance_cm, int speed = 50) {
+  // Reset encoders
+  encoderLeft1.write(0);
+  encoderLeft2.write(0);
+  encoderRight1.write(0);
+  encoderRight2.write(0);
+  
+  // Calculate target counts
+  long target_counts = distance_cm / DISTANCE_PER_COUNT;
+  
+  // Start moving forward
+  setLeftMotor1Speed(speed);
+  setLeftMotor2Speed(speed);
+  setRightMotor1Speed(speed);
+  setRightMotor2Speed(speed);
+  
+  // Wait until target distance is reached
+  while (true) {
+    noInterrupts();
+    long current_left1 = encoderLeft1.read();
+    long current_left2 = encoderLeft2.read();
+    long current_right1 = encoderRight1.read();
+    long current_right2 = encoderRight2.read();
+    interrupts();
+    
+    // Check if any motor has reached the target
+    if (abs(current_left1) >= target_counts || 
+        abs(current_left2) >= target_counts || 
+        abs(current_right1) >= target_counts || 
+        abs(current_right2) >= target_counts) {
+      break;
+    }
+    delay(10); // Small delay to prevent CPU overload
+  }
+  
+  // Stop motors
+  stopMotors();
+}
+
+void moveBackward(float distance_cm, int speed = 50) {
+  // Reset encoders
+  encoderLeft1.write(0);
+  encoderLeft2.write(0);
+  encoderRight1.write(0);
+  encoderRight2.write(0);
+  
+  // Calculate target counts
+  long target_counts = distance_cm / DISTANCE_PER_COUNT;
+  
+  // Start moving backward
+  setLeftMotor1Speed(-speed);
+  setLeftMotor2Speed(-speed);
+  setRightMotor1Speed(-speed);
+  setRightMotor2Speed(-speed);
+  
+  // Wait until target distance is reached
+  while (true) {
+    noInterrupts();
+    long current_left1 = encoderLeft1.read();
+    long current_left2 = encoderLeft2.read();
+    long current_right1 = encoderRight1.read();
+    long current_right2 = encoderRight2.read();
+    interrupts();
+    
+    // Check if any motor has reached the target
+    if (abs(current_left1) >= target_counts || 
+        abs(current_left2) >= target_counts || 
+        abs(current_right1) >= target_counts || 
+        abs(current_right2) >= target_counts) {
+      break;
+    }
+    delay(10); // Small delay to prevent CPU overload
+  }
+  
+  // Stop motors
+  stopMotors();
+}
+
 void setup() {
   // Initialize motor control pins
   pinMode(leftMotor1PWMPin, OUTPUT);
@@ -143,17 +227,19 @@ void loop() {
     Serial.println(right2Dist, 2);
   }
 
-/*   setLeftMotor1Speed(50);  // Example speed for left motor 1
-  setLeftMotor2Speed(50);  // Example speed for left motor 2
-  setRightMotor1Speed(50); // Example speed for right motor 1
-  setRightMotor2Speed(50); // Example speed for right motor 2
+  // Example usage in loop (you can remove or modify this)
+  /* static bool hasMoved = false;
+  if (!hasMoved) {
+    moveForward(20.0);  // Move forward 20 cm
+    delay(1000);
+    moveBackward(20.0); // Move backward 20 cm
+    hasMoved = true;
+  } */
 
-  delay(5000);
-  setRightMotor1Speed(-50); // Example speed for right motor 1
-  setRightMotor2Speed(-50);
-  setLeftMotor1Speed(-50); // Example speed for right motor 1
-  setLeftMotor2Speed(-50);  // Example speed for left motor 2 */
+  moveForward(20.0);  // Move forward 20 cm
+    delay(1000);
+    moveBackward(20.0);
 
   // Add small delay to prevent serial overflow
-  delay(500);
+  delay(1000);
 }
