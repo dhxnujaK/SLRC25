@@ -40,12 +40,11 @@ const float DISTANCE_PER_COUNT = (WHEEL_DIAMETER_CM * PI) / (COUNTS_PER_REVOLUTI
 
 // --- PID Control (Left2 & Right2 Only) ---
 double Setpoint, Input, Output;         // PID variables
-double Kp = 0.2, Ki = 0.03, Kd = 0.4;  // Tune these
+double Kp = 0.4, Ki = 0.0, Kd = 0.3;  // Tune these
 PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
 
-int baseSpeed = 100;  // Base PWM speed (0-255)
+int baseSpeed = 90;  // Base PWM speed (0-255)
 
-// ================== MOVEMENT FUNCTIONS ==================
 // ================== MOTOR CONTROL ==================
 void setLeftMotor1Speed(int speed) {
   speed = constrain(speed, -255, 255);
@@ -83,55 +82,8 @@ void stopAllMotors() {
   setRightMotor2Speed(0);
   Serial.println("Motors Stopped");
 }
-void moveForwardStraightPID(float distance_cm) {
-  // Reset ALL encoders
-  encoderLeft1.write(0);
-  encoderLeft2.write(0);
-  encoderRight1.write(0);
-  encoderRight2.write(0);
 
-  long targetCounts = distance_cm / DISTANCE_PER_COUNT;
-
-  // Start ALL motors at base speed
-  setLeftMotor1Speed(baseSpeed);
-  setLeftMotor2Speed(baseSpeed);   // PID-adjusted
-  setRightMotor1Speed(baseSpeed);
-  setRightMotor2Speed(baseSpeed);  // PID-adjusted
-
-  while (true) {
-    // Read Left2 & Right2 for PID (ignore others)
-    long left2 = abs(encoderLeft2.read());
-    long right2 = abs(encoderRight2.read());
-
-    // Compute PID correction
-    Input = left2 - right2;
-    myPID.Compute();
-
-    // Apply correction ONLY to Left2 & Right2
-    setLeftMotor2Speed(baseSpeed + Output);  // Slow down if ahead
-    setRightMotor2Speed(baseSpeed*1.07 - Output); // Speed up if behind
-
-    // Debug output
-    Serial.print("L2: ");
-    Serial.print(left2);
-    Serial.print(" | R2: ");
-    Serial.print(right2);
-    Serial.print(" | PID Out: ");
-    Serial.println(Output);
-
-    // Stop when any motor reaches target
-    if (left2 >= targetCounts || right2 >= targetCounts) {
-      stopAllMotors();
-      break;
-    }
-
-    delay(10);  // Prevent CPU overload
-  }
-}
-
-
-
-void moveForward(float distance_cm, int speed = 70) {
+void moveForward(float distance_cm, int speed = 150) {
   // Reset encoders
   encoderLeft1.write(0);
   encoderLeft2.write(0);
@@ -154,9 +106,62 @@ void moveForward(float distance_cm, int speed = 70) {
   stopAllMotors();
 }
 
-void moveBackward(float distance_cm, int speed = 70) {
+void moveBackward(float distance_cm, int speed = 150) {
   moveForward(distance_cm, -speed);  // Reuses moveForward with negative speed
 }
+void moveForwardStraightPID(float distance_cm) {
+  // Reset ALL encoders
+  encoderLeft1.write(0);
+  encoderLeft2.write(0);
+  encoderRight1.write(0);
+  encoderRight2.write(0);
+
+  long targetCounts = distance_cm / DISTANCE_PER_COUNT;
+
+  // Start ALL motors at base speed
+  setLeftMotor1Speed(baseSpeed);
+  setLeftMotor2Speed(0);   // PID-adjusted
+  setRightMotor1Speed(baseSpeed);
+  setRightMotor2Speed(0);  // PID-adjusted
+
+  while (true) {
+    // Read Left2 & Right2 for PID (ignore others)
+    noInterrupts();  // Disable interrupts to read encoder values safely
+    long newLeft1 = encoderLeft1.read();
+    long newLeft2 = encoderLeft2.read();
+    long newRight1 = encoderRight1.read();
+    long newRight2 = encoderRight2.read();
+    interrupts();  // Re-enable interrupts
+    long left2 = abs(newLeft2);
+    long right2 = abs(newRight2);
+
+    // Compute PID correction
+    Input = left2 - right2;
+    myPID.Compute();
+
+    // Apply correction ONLY to Left2 & Right2
+    //setLeftMotor2Speed(baseSpeed + Output);  // Slow down if ahead
+    //setRightMotor2Speed(baseSpeed - Output); // Speed up if behind
+
+
+    // Debug output
+    Serial.print("L2: ");
+    Serial.print(left2);
+    Serial.print(" | R2: ");
+    Serial.print(right2);
+    Serial.print(" | PID Out: ");
+    Serial.println(Output);
+
+    // Stop when any motor reaches target
+    if (left2 >= targetCounts || right2 >= targetCounts) {
+      stopAllMotors();
+      break;
+    }
+
+    //delay(3);  // Prevent CPU overload
+  }
+}
+
 
 // ====================== CORE FUNCTIONS ======================
 void setup() {
@@ -188,7 +193,7 @@ void setup() {
   // Configure PID
   Setpoint = 0;  // Target: Zero difference between Left2/Right2
   myPID.SetMode(AUTOMATIC);
-  myPID.SetOutputLimits(-50, 50);  // Limit correction to ±50 PWM
+  myPID.SetOutputLimits(-30, 30);  // Limit correction to ±50 PWM
 
   Serial.println("Robot Ready: PID Active on Left2/Right2");
 }
@@ -198,4 +203,6 @@ void loop() {
   moveForwardStraightPID(100.0);  // Distance in cm
   delay(3000);                    // Pause before repeating
 }
+
+// ================== MOVEMENT FUNCTIONS ==================
 
