@@ -9,15 +9,11 @@
 float firCoeffs[FIR_TAPS] = {0.1, 0.15, 0.5, 0.15, 0.1};
 
 // Buffers to hold recent encoder values for each motor
-static float left1Buffer[FIR_TAPS]  = {0, 0, 0, 0, 0};
 static float left2Buffer[FIR_TAPS]  = {0, 0, 0, 0, 0};
-static float right1Buffer[FIR_TAPS] = {0, 0, 0, 0, 0};
 static float right2Buffer[FIR_TAPS] = {0, 0, 0, 0, 0};
 
 // Indices for ring buffers
-static int left1Index  = 0;
 static int left2Index  = 0;
-static int right1Index = 0;
 static int right2Index = 0;
 
 // Generic FIR apply function
@@ -41,9 +37,7 @@ float applyFIR(float newSample, float* buffer, float* coeffs, int &index) {
 }
 
 // --- Encoders (All 4) ---
-Encoder encoderLeft1(34, 35);   // Left1
 Encoder encoderLeft2(19, 18);   // Left2 (PID-controlled)
-Encoder encoderRight1(26, 27);  // Right1
 Encoder encoderRight2(2, 3);    // Right2 (PID-controlled)
 
 // --- Motor Pins (All 4) ---
@@ -124,9 +118,7 @@ void stopAllMotors() {
 
 void moveForward(float distance_cm, int speed = 150) {
   // Reset encoders
-  encoderLeft1.write(0);
   encoderLeft2.write(0);
-  encoderRight1.write(0);
   encoderRight2.write(0);
 
   long target = distance_cm / DISTANCE_PER_COUNT;
@@ -148,11 +140,10 @@ void moveForward(float distance_cm, int speed = 150) {
 void moveBackward(float distance_cm, int speed = 150) {
   moveForward(distance_cm, -speed);  // Reuses moveForward with negative speed
 }
+
 void moveForwardStraightPID(float distance_cm) {
   // Reset ALL encoders
-  encoderLeft1.write(0);
   encoderLeft2.write(0);
-  encoderRight1.write(0);
   encoderRight2.write(0);
 
   long targetCounts = distance_cm / DISTANCE_PER_COUNT;
@@ -166,21 +157,15 @@ void moveForwardStraightPID(float distance_cm) {
   while (true) {
     // Read Left2 & Right2 for PID (ignore others)
     noInterrupts();  // Disable interrupts to read encoder values safely
-    long newLeft1 = encoderLeft1.read();
     long newLeft2 = encoderLeft2.read();
-    long newRight1 = encoderRight1.read();
     long newRight2 = encoderRight2.read();
     interrupts();  // Re-enable interrupts
     
     // Convert to float and apply FIR filter
-    float rawLeft1  = (float)newLeft1;
     float rawLeft2  = (float)newLeft2;
-    float rawRight1 = (float)newRight1;
     float rawRight2 = (float)newRight2;
 
-    float filteredLeft1  = applyFIR(rawLeft1,  left1Buffer,  firCoeffs, left1Index);
     float filteredLeft2  = applyFIR(rawLeft2,  left2Buffer,  firCoeffs, left2Index);
-    float filteredRight1 = applyFIR(rawRight1, right1Buffer, firCoeffs, right1Index);
     float filteredRight2 = applyFIR(rawRight2, right2Buffer, firCoeffs, right2Index);
 
     long left2  = labs((long)filteredLeft2);
@@ -211,7 +196,6 @@ void moveForwardStraightPID(float distance_cm) {
     //delay(3);  // Prevent CPU overload
   }
 }
-
 
 // ====================== CORE FUNCTIONS ======================
 void setup() {
