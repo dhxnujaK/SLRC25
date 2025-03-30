@@ -48,7 +48,7 @@ void setLeftMotor2Speed(int speed) {
   speed = constrain(speed, -255, 255);
   digitalWrite(leftMotor2DirPin1, speed > 0 ? HIGH : LOW);
   digitalWrite(leftMotor2DirPin2, speed < 0 ? HIGH : LOW);
-  analogWrite(leftMotor2PWMPin, abs(speed*1.0923));
+  analogWrite(leftMotor2PWMPin, abs(speed*1.06));
 }
 
 void setRightMotor1Speed(int speed) {
@@ -79,6 +79,44 @@ void moveForward(int speed) {
   setRightMotor1Speed(speed);
   setRightMotor2Speed(speed);
   Serial.println("Moving Forward");
+}
+void moveForward(int speed, float distance) {
+  encoderLeft1.write(0);
+  encoderLeft2.write(0);
+  encoderRight1.write(0);
+  encoderRight2.write(0);
+  setLeftMotor1Speed(speed);
+  setLeftMotor2Speed(speed);
+  setRightMotor1Speed(speed);
+  setRightMotor2Speed(speed);
+  Serial.println("Moving Forward");
+  while (true)
+  {
+    long right2Count = abs(encoderRight2.read());
+    long left2Count = abs(encoderLeft2.read());
+
+    float right2Dist = right2Count * DISTANCE_PER_COUNT;
+    float left2Dist = left2Count * DISTANCE_PER_COUNT;
+
+
+    float Dist = (right2Dist + left2Dist) / 2.0;
+    if(Dist >= distance) {
+      stopAllMotors();
+      break;  // Exit the loop
+    }
+    
+    delay(10);
+  }
+  
+
+}
+
+void moveBackward(int speed) {
+  setLeftMotor1Speed(-speed);
+  setLeftMotor2Speed(-speed);
+  setRightMotor1Speed(-speed);
+  setRightMotor2Speed(-speed);
+  Serial.println("Moving Backward");
 }
 
 void setup() {
