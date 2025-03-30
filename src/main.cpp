@@ -32,7 +32,7 @@ const int EnablePin1 = 25;  // Left motors
 const int EnablePin2 = 24;  // Right motors
 
 // --- Robot Parameters ---
-const float WHEEL_DIAMETER_CM = 4.5;      // Measure your wheel
+const float WHEEL_DIAMETER_CM = 5.4;      // Measure your wheel
 const int COUNTS_PER_REVOLUTION = 100;    // From encoder specs
 const float GEAR_RATIO = 15;              // Gear reduction ratio
 const float DISTANCE_PER_COUNT = (WHEEL_DIAMETER_CM * PI) / (COUNTS_PER_REVOLUTION * GEAR_RATIO);
@@ -41,14 +41,14 @@ void setLeftMotor1Speed(int speed) {
   speed = constrain(speed, -255, 255);
   digitalWrite(leftMotor1DirPin1, speed > 0 ? HIGH : LOW);
   digitalWrite(leftMotor1DirPin2, speed < 0 ? HIGH : LOW);
-  analogWrite(leftMotor1PWMPin, abs(speed));
+  analogWrite(leftMotor1PWMPin, abs(speed*0.92));
 }
 
 void setLeftMotor2Speed(int speed) {
   speed = constrain(speed, -255, 255);
   digitalWrite(leftMotor2DirPin1, speed > 0 ? HIGH : LOW);
   digitalWrite(leftMotor2DirPin2, speed < 0 ? HIGH : LOW);
-  analogWrite(leftMotor2PWMPin, abs(speed*1.06));
+  analogWrite(leftMotor2PWMPin, abs(speed));
 }
 
 void setRightMotor1Speed(int speed) {
@@ -100,7 +100,7 @@ void moveForward(int speed, float distance) {
 
 
     float Dist = (right2Dist + left2Dist) / 2.0;
-    if(Dist >= distance) {
+    if(!(Dist <= distance)) {
       stopAllMotors();
       break;  // Exit the loop
     }
@@ -118,6 +118,15 @@ void moveBackward(int speed) {
   setRightMotor2Speed(-speed);
   Serial.println("Moving Backward");
 }
+
+void turnLeft(int speed) {
+  setLeftMotor1Speed(-speed);
+  setLeftMotor2Speed(-speed);
+  setRightMotor1Speed(speed);
+  setRightMotor2Speed(speed);
+  delay(1500);  // Adjust delay for turning time
+  Serial.println("Turning Left");
+} 
 
 void setup() {
   Serial.begin(115200);
@@ -184,8 +193,9 @@ void loop() {
   Serial.println(" cm)");
 
   // Short delay to prevent serial overflow
-  moveForward(50);  // Move forward at speed 100
+  moveForward(90,30);  // Move forward at speed 100
   delay(1000);      // Move for 1 second
+  turnLeft(90);  // Turn left at speed 100
   stopAllMotors();  // Stop motors
   delay(1000);
 }
