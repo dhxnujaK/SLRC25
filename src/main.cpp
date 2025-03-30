@@ -73,10 +73,10 @@ const float DISTANCE_PER_COUNT = (WHEEL_DIAMETER_CM * PI) / (COUNTS_PER_REVOLUTI
 
 // --- PID Control (Left2 & Right2 Only) ---
 double Setpoint, Input, Output;         // PID variables
-double Kp = 0.2, Ki = 0.0, Kd = 0.1;  // Tune these
+double Kp = 0.1, Ki = 0.0, Kd = 0.05;  // Tune these
 PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
 
-int baseSpeed = 70;  // Lowered base speed
+int baseSpeed = 50;  // Lowered base speed
 
 // ================== MOTOR CONTROL ==================
 void setLeftMotor1Speed(int speed) {
@@ -172,12 +172,12 @@ void moveForwardStraightPID(float distance_cm) {
     long right2 = labs((long)filteredRight2);
 
     // Compute PID correction
-    Input = (float)left2 - (float)right2;
+    Input = (float)right2 - (float)left2;
     myPID.Compute();
 
     // Apply correction ONLY to Left2 & Right2
-    setLeftMotor2Speed(baseSpeed - Output);
-    setRightMotor2Speed(baseSpeed + Output);
+    setLeftMotor2Speed(baseSpeed + Output);
+    setRightMotor2Speed(baseSpeed - Output);
 
     // Debug output
     Serial.print("L2: ");
@@ -187,8 +187,8 @@ void moveForwardStraightPID(float distance_cm) {
     Serial.print(" | PID Out: ");
     Serial.println(Output);
 
-    // Stop when both motors reach target
-    if (left2 >= targetCounts && right2 >= targetCounts) {
+    // Stop when either motor reaches target
+    if (left2 >= targetCounts || right2 >= targetCounts) {
       stopAllMotors();
       break;
     }
@@ -228,7 +228,7 @@ void setup() {
   // Configure PID
   Setpoint = 0;  // Target: Zero difference between Left2/Right2
   myPID.SetMode(AUTOMATIC);
-  myPID.SetOutputLimits(-20, 20);  // Limit correction to ±20 PWM
+  myPID.SetOutputLimits(-50, 50);  // Limit correction to ±50 PWM
 
   Serial.println("Robot Ready: PID Active on Left2/Right2");
 }
