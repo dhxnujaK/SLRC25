@@ -185,8 +185,24 @@ void setup() {
 
 // --- MAIN LOOP ---
 void loop() {
+  turnLeft(120, 90);      // Turn left by 90 degrees
+  delay(1000);
   moveForward(90, 30);   // Move forward 30 cm
   delay(500);
+  turnRight(120, 90);      // Turn left by 90 degrees
+  delay(500);
+  moveForward(90, 30);   // Move forward 30 cm
+  delay(500);
+  moveBackward(90, 30);   // Move backward 30 cm
+  delay(500);
   turnLeft(120, 90);      // Turn left by 90 degrees
+  delay(500);
+  moveForward(90, 30);   // Move forward 30 cm
+  delay(500);
+  turnRight(120, 90);      // Turn left by 90 degrees
+  delay(500);
+  moveForward(90, 60);   // Move forward 30 cm
+  delay(500);
+  moveBackward(90, 60);   // Move backward 30 cm
   delay(1000);
 }
