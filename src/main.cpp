@@ -116,7 +116,7 @@ void turnRight(int speed, float targetAngle) {
   while (true) {
     mpu.update();
     float currentYaw = mpu.getAngleZ();
-    if (currentYaw >= startYaw + targetAngle) {
+    if (currentYaw <= startYaw - targetAngle) {
       stopAllMotors();
       break;
     }
