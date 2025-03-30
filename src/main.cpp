@@ -3,8 +3,8 @@
 // Initialize Encoders with specified pins
 Encoder encoderLeft1(34, 35);
 Encoder encoderLeft2(37, 36);
-Encoder encoderRight1(27, 26);
-Encoder encoderRight2(29, 28);
+Encoder encoderRight1(26, 27);
+Encoder encoderRight2(2, 3);
 
 // Motor Control Pins
 // Left Motor 1
@@ -31,6 +31,14 @@ const int rightMotor2DirPin2 = 23;
 const int EnablePin1 = 25;
 const int EnablePin2 = 24;
 
+// Robot parameters (ADJUST THESE VALUES)
+const float WHEEL_DIAMETER_CM = 6.5;      // Measure your wheel diameter
+const int COUNTS_PER_REVOLUTION = 330;    // From encoder/motor specs
+const float GEAR_RATIO = 1.0;             // If using gear reduction
+
+// Calculated constants
+const float DISTANCE_PER_COUNT = (WHEEL_DIAMETER_CM * PI) / (COUNTS_PER_REVOLUTION * GEAR_RATIO);
+
 // Encoder positions
 volatile long left1Pos = 0;
 volatile long left2Pos = 0;
@@ -41,28 +49,28 @@ volatile long right2Pos = 0;
 void setLeftMotor1Speed(int speed) {
   speed = constrain(speed, -255, 255);
   digitalWrite(leftMotor1DirPin1, speed > 0 ? HIGH : LOW);
-  digitalWrite(leftMotor1DirPin2, speed > 0 ? LOW : HIGH);
+  digitalWrite(leftMotor1DirPin2, speed < 0 ? HIGH : LOW);
   analogWrite(leftMotor1PWMPin, abs(speed));
 }
 
 void setLeftMotor2Speed(int speed) {
   speed = constrain(speed, -255, 255);
   digitalWrite(leftMotor2DirPin1, speed > 0 ? HIGH : LOW);
-  digitalWrite(leftMotor2DirPin2, speed > 0 ? LOW : HIGH);
+  digitalWrite(leftMotor2DirPin2, speed < 0 ? HIGH : LOW);
   analogWrite(leftMotor2PWMPin, abs(speed));
 }
 
 void setRightMotor1Speed(int speed) {
   speed = constrain(speed, -255, 255);
   digitalWrite(rightMotor1DirPin1, speed > 0 ? HIGH : LOW);
-  digitalWrite(rightMotor1DirPin2, speed > 0 ? LOW : HIGH);
+  digitalWrite(rightMotor1DirPin2, speed < 0 ? HIGH : LOW);
   analogWrite(rightMotor1PWMPin, abs(speed));
 }
 
 void setRightMotor2Speed(int speed) {
   speed = constrain(speed, -255, 255);
   digitalWrite(rightMotor2DirPin1, speed > 0 ? HIGH : LOW);
-  digitalWrite(rightMotor2DirPin2, speed > 0 ? LOW : HIGH);
+  digitalWrite(rightMotor2DirPin2, speed < 0 ? HIGH : LOW);
   analogWrite(rightMotor2PWMPin, abs(speed));
 }
 
@@ -90,15 +98,29 @@ void setup() {
   digitalWrite(EnablePin1, HIGH);
   digitalWrite(EnablePin2, HIGH);
 
+  // Reset encoders to zero position
+  encoderLeft1.write(0);
+  encoderLeft2.write(0);
+  encoderRight1.write(0);
+  encoderRight2.write(0);
+
   Serial.begin(115200);
 }
 
 void loop() {
   // Update encoder readings
+  noInterrupts();  // Disable interrupts to read encoder values safely
   long newLeft1 = encoderLeft1.read();
   long newLeft2 = encoderLeft2.read();
   long newRight1 = encoderRight1.read();
   long newRight2 = encoderRight2.read();
+  interrupts();  // Re-enable interrupts
+
+  // Calculate distances
+  float left1Dist = newLeft1 * DISTANCE_PER_COUNT;
+  float left2Dist = newLeft2 * DISTANCE_PER_COUNT;
+  float right1Dist = newRight1 * DISTANCE_PER_COUNT;
+  float right2Dist = newRight2 * DISTANCE_PER_COUNT;
 
   // Check if positions have changed
   if (newLeft1 != left1Pos || newLeft2 != left2Pos || 
@@ -108,23 +130,28 @@ void loop() {
     right1Pos = newRight1;
     right2Pos = newRight2;
 
-    // Print all encoder values
-    Serial.print("Encoders - L1:");
-    Serial.print(left1Pos);
+    // Print distances in centimeters
+    Serial.print("Distances (cm) | L1:");
+    Serial.print(left1Dist, 2);  // 2 decimal places
     Serial.print(" L2:");
-    Serial.print(left2Pos);
+    Serial.print(left2Dist, 2);
     Serial.print(" R1:");
-    Serial.print(right1Pos);
+    Serial.print(right1Dist, 2);
     Serial.print(" R2:");
-    Serial.println(right2Pos);
+    Serial.println(right2Dist, 2);
   }
-  // Test code - move all motors forward at 50% speed
-/* setLeftMotor1Speed(20);
-setLeftMotor2Speed(20);
-setRightMotor1Speed(20);
-setRightMotor2Speed(20); */
+
+  setLeftMotor1Speed(50);  // Example speed for left motor 1
+  setLeftMotor2Speed(50);  // Example speed for left motor 2
+  setRightMotor1Speed(50); // Example speed for right motor 1
+  setRightMotor2Speed(50); // Example speed for right motor 2
+
+  delay(5000);
+  setRightMotor1Speed(-50); // Example speed for right motor 1
+  setRightMotor2Speed(-50);
+  setLeftMotor1Speed(-50); // Example speed for right motor 1
+  setLeftMotor2Speed(-50);  // Example speed for left motor 2
 
   // Add small delay to prevent serial overflow
-  delay(10);
+  delay(5000);
 }
-
