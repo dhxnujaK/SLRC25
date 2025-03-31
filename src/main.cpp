@@ -1,6 +1,9 @@
 #include <Wire.h>
 #include <MPU6050_light.h>
 #include <Encoder.h>
+#include <Adafruit_VL53L0X.h>
+
+#define XSHUT_PIN 41
 
 // --- MPU6050 Setup ---
 MPU6050 mpu(Wire);
@@ -26,7 +29,11 @@ const int COUNTS_PER_REV = 100;
 const float GEAR_RATIO = 15;
 const float DISTANCE_PER_COUNT = (WHEEL_DIAMETER_CM * PI) / (COUNTS_PER_REV * GEAR_RATIO);
 
+Adafruit_VL53L0X lox = Adafruit_VL53L0X();
+
 // --- Function to Set Motor Speeds ---
+void moveForward(int speed, float distance);
+
 void setMotorSpeed(int left1, int left2, int right1, int right2) {
   analogWrite(leftMotor1PWMPin, abs(left1*0.92));
   digitalWrite(leftMotor1DirPin1, left1 > 0);
@@ -50,9 +57,68 @@ void stopAllMotors() {
   Serial.println("Motors Stopped");
 }
 
-void moveForward(int speed) {
-  setMotorSpeed(speed, speed, speed, speed);
+void moveBackward(int speed, float distance) {
+  encoderLeft1.write(0);
+  encoderLeft2.write(0);
+  encoderRight1.write(0);
+  encoderRight2.write(0);
+  setMotorSpeed(-speed, -speed, -speed, -speed);
   Serial.println("Moving Forward");
+  
+  while (true) {
+    long right2Count = abs(encoderRight2.read());
+    long left2Count = abs(encoderLeft2.read());
+    float right2Dist = right2Count * DISTANCE_PER_COUNT;
+    float left2Dist = left2Count * DISTANCE_PER_COUNT;
+    float avgDist = (right2Dist + left2Dist) / 2.0;
+
+    if (avgDist >= distance) {
+      moveForward(90, 1);
+      stopAllMotors();
+      break;
+    }
+    delay(10);
+  }
+}
+
+void moveForward(int speed) {
+  Serial.println("Moving Forward");
+  
+  // Reset encoders at the start
+  encoderRight2.write(0);
+  encoderLeft2.write(0);
+
+  while (true) {
+    // Update encoder distances
+    long right2Count = abs(encoderRight2.read());
+    long left2Count = abs(encoderLeft2.read());
+    float right2Dist = right2Count * DISTANCE_PER_COUNT;
+    float left2Dist = left2Count * DISTANCE_PER_COUNT;
+    float avgDist = (right2Dist + left2Dist) / 2.0;
+
+    // Check for obstacles
+    VL53L0X_RangingMeasurementData_t measure;
+    lox.rangingTest(&measure, false);
+
+    if (measure.RangeStatus != 4) { // Valid reading
+      Serial.print("Distance (mm): ");
+      Serial.println(measure.RangeMilliMeter);
+
+      if (measure.RangeMilliMeter < 100) { // Obstacle detected
+        stopAllMotors();
+        Serial.println("Obstacle detected! Reversing...");
+        
+        // Reverse the robot by the distance it traveled (avgDist)
+        moveBackward(90, avgDist);
+        break; // Exit the loop
+      }
+    } else {
+      Serial.println("Sensor error or out of range");
+    }
+    setMotorSpeed(speed, speed, speed, speed);
+
+    delay(10); // Small delay to avoid flooding I²C bus
+  }
 }
 
 void moveForward(int speed, float distance) {
@@ -82,28 +148,7 @@ void moveBackward(int speed) {
   setMotorSpeed(-speed, -speed, -speed, -speed);
   Serial.println("Moving Backward");
 }
-void moveBackward(int speed, float distance) {
-  encoderLeft1.write(0);
-  encoderLeft2.write(0);
-  encoderRight1.write(0);
-  encoderRight2.write(0);
-  setMotorSpeed(-speed, -speed, -speed, -speed);
-  Serial.println("Moving Forward");
-  
-  while (true) {
-    long right2Count = abs(encoderRight2.read());
-    long left2Count = abs(encoderLeft2.read());
-    float right2Dist = right2Count * DISTANCE_PER_COUNT;
-    float left2Dist = left2Count * DISTANCE_PER_COUNT;
-    float avgDist = (right2Dist + left2Dist) / 2.0;
 
-    if (avgDist >= distance) {
-      stopAllMotors();
-      break;
-    }
-    delay(10);
-  }
-}
 
 // --- TURN BASED ON GYROSCOPE ---
 void turnLeft(int speed, float targetAngle) {
@@ -154,6 +199,20 @@ void setup() {
   Serial.begin(115200);
   Wire.begin();
 
+  // Reset the sensor via XSHUT pin
+  pinMode(XSHUT_PIN, OUTPUT);
+  digitalWrite(XSHUT_PIN, LOW); // Hold in reset
+  delay(10);
+  digitalWrite(XSHUT_PIN, HIGH); // Release reset
+  delay(10);
+  Serial.println("Initializing VL53L0X...");
+  if (!lox.begin()) {
+    Serial.println("Failed to boot VL53L0X!");
+    while (1);
+  }
+  Serial.println("VL53L0X ready!");
+
+  // Initialize the MPU6050
   Serial.println("Initializing MPU6050...");
   if (mpu.begin() != 0) {
     Serial.println("MPU6050 failed!");
@@ -185,7 +244,7 @@ void setup() {
 
 // --- MAIN LOOP ---
 void loop() {
-  turnLeft(120, 90);      // Turn left by 90 degrees
+  /* turnLeft(120, 90);      // Turn left by 90 degrees
   delay(1000);
   moveForward(90, 30);   // Move forward 30 cm
   delay(500);
@@ -204,5 +263,17 @@ void loop() {
   moveForward(90, 60);   // Move forward 30 cm
   delay(500);
   moveBackward(90, 60);   // Move backward 30 cm
+  delay(1000); */
+
+  //moveForward(90);
+
+  turnLeft(120,90);
+  delay(500);
+  moveForward(90, 30);   // Move forward 30 cm
+  delay(500);
+  turnRight(120, 90);      // Turn left by 90 degrees
+  delay(500);
+  moveForward(90);
+
   delay(1000);
 }
