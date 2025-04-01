@@ -4,6 +4,11 @@
 #include <Adafruit_VL53L0X.h>
 
 #define XSHUT_PIN 41
+#define S0 46
+#define S1 47
+#define S2 42
+#define S3 44
+#define OUT 43
 
 // --- MPU6050 Setup ---
 MPU6050 mpu(Wire);
@@ -29,10 +34,14 @@ const int COUNTS_PER_REV = 100;
 const float GEAR_RATIO = 15;
 const float DISTANCE_PER_COUNT = (WHEEL_DIAMETER_CM * PI) / (COUNTS_PER_REV * GEAR_RATIO);
 
+// Variables to store pulse width measurements
+int redValue, greenValue, blueValue;
+
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 
 // --- Function to Set Motor Speeds ---
 void moveForward(int speed, float distance);
+void readRGB();
 
 void setMotorSpeed(int left1, int left2, int right1, int right2) {
   analogWrite(leftMotor1PWMPin, abs(left1*0.92));
@@ -144,6 +153,38 @@ void moveForward(int speed, float distance) {
   }
 }
 
+void moveUntillGreen(int speed) {
+  encoderLeft1.write(0);
+  encoderLeft2.write(0);
+  encoderRight1.write(0);
+  encoderRight2.write(0);
+  Serial.println("Moving Forward");
+
+  while (true) {
+        // Update encoder distances
+        long right2Count = abs(encoderRight2.read());
+        long left2Count = abs(encoderLeft2.read());
+        float right2Dist = right2Count * DISTANCE_PER_COUNT;
+        float left2Dist = left2Count * DISTANCE_PER_COUNT;
+        float avgDist = (right2Dist + left2Dist) / 2.0;
+    readRGB();
+    Serial.print("Red: ");
+    Serial.print(redValue);
+    Serial.print(" Green: ");
+    Serial.print(greenValue);
+    Serial.print(" Blue: ");
+    Serial.println(blueValue);
+
+    if ((greenValue < redValue && greenValue < blueValue) && (redValue+blueValue+greenValue)/3 > 100) {
+      stopAllMotors();
+      moveBackward(90,avgDist);
+      break;
+    }
+    setMotorSpeed(speed, speed, speed, speed);
+    delay(10);
+  }
+}
+
 void moveBackward(int speed) {
   setMotorSpeed(-speed, -speed, -speed, -speed);
   Serial.println("Moving Backward");
@@ -152,7 +193,7 @@ void moveBackward(int speed) {
 
 // --- TURN BASED ON GYROSCOPE ---
 void turnLeft(int speed, float targetAngle) {
-  targetAngle += 53.13559;
+  targetAngle += 58.13559;
   mpu.update();
   float startYaw = mpu.getAngleZ();
   float targetYaw = startYaw + targetAngle;
@@ -175,7 +216,7 @@ void turnLeft(int speed, float targetAngle) {
 }
 
 void turnRight(int speed, float targetAngle) {
-  targetAngle += 53.13559;
+  targetAngle += 58.13559;
   mpu.update();
   float startYaw = mpu.getAngleZ();
   Serial.print("Turning Right: Target Yaw = ");
@@ -192,6 +233,24 @@ void turnRight(int speed, float targetAngle) {
     }
     delay(10);
   }
+}
+
+// Function to read RGB values from TCS230
+void readRGB() {
+  // Measure Red component
+  digitalWrite(S2, LOW);
+  digitalWrite(S3, LOW);
+  redValue = pulseIn(OUT, LOW); // Higher pulse width = lower intensity
+
+  // Measure Green component
+  digitalWrite(S2, HIGH);
+  digitalWrite(S3, HIGH);
+  greenValue = pulseIn(OUT, LOW);
+
+  // Measure Blue component
+  digitalWrite(S2, LOW);
+  digitalWrite(S3, HIGH);
+  blueValue = pulseIn(OUT, LOW);
 }
 
 // --- SETUP ---
@@ -237,6 +296,16 @@ void setup() {
   pinMode(rightMotor2DirPin2, OUTPUT);
   pinMode(EnablePin1, OUTPUT);
   pinMode(EnablePin2, OUTPUT);
+
+  pinMode(S0, OUTPUT);
+  pinMode(S1, OUTPUT);
+  pinMode(S2, OUTPUT);
+  pinMode(S3, OUTPUT);
+  pinMode(OUT, INPUT);
+
+  // Set frequency scaling to 20% (recommended for better resolution)
+  digitalWrite(S0, HIGH);
+  digitalWrite(S1, LOW);
   
   digitalWrite(EnablePin1, HIGH);
   digitalWrite(EnablePin2, HIGH);
@@ -267,13 +336,21 @@ void loop() {
 
   //moveForward(90);
 
-  turnLeft(120,90);
+/*   turnLeft(120,90);
   delay(500);
   moveForward(90, 30);   // Move forward 30 cm
   delay(500);
   turnRight(120, 90);      // Turn left by 90 degrees
   delay(500);
-  moveForward(90);
+  moveForward(90); */
+
+  turnLeft(120,90);
+  delay(500);
+  moveForward(90,30);
+  delay(500);
+  turnRight(120,90);
+  delay(500);
+  moveUntillGreen(90); // Move until green is detected
 
   delay(1000);
 }
