@@ -24,7 +24,7 @@ void moveServo(uint8_t servoNum, uint8_t angle) {
 }
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("Initializing Robot Arm Servos...");
 
   Wire.begin();  // Start I2C
