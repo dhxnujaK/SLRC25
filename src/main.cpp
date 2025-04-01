@@ -2,6 +2,7 @@
 #include <MPU6050_light.h>
 #include <Encoder.h>
 #include <Adafruit_VL53L0X.h>
+#include <Adafruit_PWMServoDriver.h>
 
 #define XSHUT_PIN 41
 #define S0 46
@@ -10,8 +11,22 @@
 #define S3 44
 #define OUT 43
 
+// Servo configuration
+#define SERVO_FREQ 50  // Frequency for analog servos (Hz)
+#define SERVOMIN  150  // Minimum pulse length count (out of 4096)
+#define SERVOMAX  600  // Maximum pulse length count (out of 4096)
+
+// Servo channels for robot arm joints
+#define BASE_SERVO      0
+#define SHOULDER_SERVO  1
+#define ELBOW_SERVO     2
+#define WRIST_SERVO     3
+#define GRIPPER_SERVO   4
+
 // --- MPU6050 Setup ---
 MPU6050 mpu(Wire);
+// Initialize the PWM driver at the default I2C address
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 // --- Encoders (All 4) ---
 Encoder encoderLeft1(34, 35);
@@ -42,6 +57,12 @@ Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 // --- Function to Set Motor Speeds ---
 void moveForward(int speed, float distance);
 void readRGB();
+
+void moveServo(uint8_t servoNum, uint8_t angle) {
+  // Map angle (0-180) to pulse length (SERVOMIN-SERVOMAX)
+  uint16_t pulse = map(angle, 0, 180, SERVOMIN, SERVOMAX);
+  pwm.setPWM(servoNum, 0, pulse);
+}
 
 void setMotorSpeed(int left1, int left2, int right1, int right2) {
   analogWrite(leftMotor1PWMPin, abs(left1*0.92));
@@ -177,6 +198,17 @@ void moveUntillGreen(int speed) {
 
     if ((greenValue < redValue && greenValue < blueValue) && (redValue+blueValue+greenValue)/3 > 100) {
       stopAllMotors();
+      moveServo(BASE_SERVO, 45); delay(500);
+      moveServo(SHOULDER_SERVO, 120); delay(500);
+      moveServo(ELBOW_SERVO, 60); delay(500);
+      moveServo(WRIST_SERVO, 100); delay(500);
+      moveServo(GRIPPER_SERVO, 30); delay(1000);  // Close gripper
+    
+      moveServo(GRIPPER_SERVO, 90); delay(1000);  // Open gripper
+      moveServo(BASE_SERVO, 90); delay(500);
+      moveServo(SHOULDER_SERVO, 90); delay(500);
+      moveServo(ELBOW_SERVO, 90); delay(500);
+      moveServo(WRIST_SERVO, 90); delay(500);
       moveBackward(90,avgDist);
       break;
     }
@@ -253,6 +285,21 @@ void readRGB() {
   blueValue = pulseIn(OUT, LOW);
 }
 
+// servo function to move the gripper
+void moveGripper() {
+  moveServo(BASE_SERVO, 45); delay(500);
+  moveServo(SHOULDER_SERVO, 120); delay(500);
+  moveServo(ELBOW_SERVO, 60); delay(500);
+  moveServo(WRIST_SERVO, 100); delay(500);
+  moveServo(GRIPPER_SERVO, 30); delay(1000);  // Close gripper
+
+  moveServo(GRIPPER_SERVO, 90); delay(1000);  // Open gripper
+  moveServo(BASE_SERVO, 90); delay(500);
+  moveServo(SHOULDER_SERVO, 90); delay(500);
+  moveServo(ELBOW_SERVO, 90); delay(500);
+  moveServo(WRIST_SERVO, 90); delay(500);
+}
+
 // --- SETUP ---
 void setup() {
   Serial.begin(115200);
@@ -270,6 +317,12 @@ void setup() {
     while (1);
   }
   Serial.println("VL53L0X ready!");
+
+  // Initialize the PWM driver
+  pwm.begin();
+  pwm.setOscillatorFrequency(27000000);
+  pwm.setPWMFreq(SERVO_FREQ);
+  delay(10);
 
   // Initialize the MPU6050
   Serial.println("Initializing MPU6050...");
@@ -309,6 +362,14 @@ void setup() {
   
   digitalWrite(EnablePin1, HIGH);
   digitalWrite(EnablePin2, HIGH);
+
+    // Initialize all servos to a neutral position
+    moveServo(BASE_SERVO, 90);
+    moveServo(SHOULDER_SERVO, 90);
+    moveServo(ELBOW_SERVO, 90);
+    moveServo(WRIST_SERVO, 90);
+    moveServo(GRIPPER_SERVO, 90);
+
 }
 
 // --- MAIN LOOP ---
