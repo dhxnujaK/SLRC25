@@ -2,8 +2,22 @@
 #include <MPU6050_light.h>
 #include <Encoder.h>
 #include <Adafruit_VL53L0X.h>
+#include <Adafruit_PWMServoDriver.h>
 
 #define XSHUT_PIN 41
+
+// Servo configuration
+#define SERVO_FREQ 50  // Frequency for analog servos (Hz)
+#define SERVOMIN  150  // Minimum pulse length count (out of 4096)
+#define SERVOMAX  600  // Maximum pulse length count (out of 4096)
+
+// Servo channels for robot arm joints
+#define BASE_SERVO      0
+#define ARM_SERVO       1
+#define WRIST_SERVO     2
+#define GRIPPER_SERVO   3
+
+#define DEFAULT_SPEED 20  // Speed range: 1 (slow) to 100 (fast)
 
 // --- MPU6050 Setup ---
 MPU6050 mpu(Wire);
@@ -29,10 +43,17 @@ const int COUNTS_PER_REV = 100;
 const float GEAR_RATIO = 15;
 const float DISTANCE_PER_COUNT = (WHEEL_DIAMETER_CM * PI) / (COUNTS_PER_REV * GEAR_RATIO);
 
+int int_angles[4] = {90,90,90,90};
+int drop_angles[4] = {90,110,0,98};
+int current_angles[4] = {90,90,90,90};
+
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
+// Initialize the PWM driver at the default I2C address
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 // --- Function to Set Motor Speeds ---
 void moveForward(int speed, float distance);
+void moveServoSmoothly(uint8_t servoNum, int target_angle, int speed = DEFAULT_SPEED);
 
 void setMotorSpeed(int left1, int left2, int right1, int right2) {
   analogWrite(leftMotor1PWMPin, abs(left1*0.92));
@@ -107,6 +128,9 @@ void moveForward(int speed) {
       if (measure.RangeMilliMeter < 100) { // Obstacle detected
         stopAllMotors();
         Serial.println("Obstacle detected! Reversing...");
+        moveServoSmoothly(BASE_SERVO, 60);
+        delay(500);
+        moveServoSmoothly(BASE_SERVO, 90);
         
         // Reverse the robot by the distance it traveled (avgDist)
         moveBackward(90, avgDist);
@@ -152,7 +176,7 @@ void moveBackward(int speed) {
 
 // --- TURN BASED ON GYROSCOPE ---
 void turnLeft(int speed, float targetAngle) {
-  targetAngle += 53.13559;
+  targetAngle *= 2;
   mpu.update();
   float startYaw = mpu.getAngleZ();
   float targetYaw = startYaw + targetAngle;
@@ -170,12 +194,12 @@ void turnLeft(int speed, float targetAngle) {
       stopAllMotors();
       break;
     }
-    delay(10);
+    delay(5);
   }
 }
 
 void turnRight(int speed, float targetAngle) {
-  targetAngle += 53.13559;
+  targetAngle *= 2;
   mpu.update();
   float startYaw = mpu.getAngleZ();
   Serial.print("Turning Right: Target Yaw = ");
@@ -190,7 +214,42 @@ void turnRight(int speed, float targetAngle) {
       stopAllMotors();
       break;
     }
-    delay(10);
+    delay(5);
+  }
+}
+
+// Function to move a servo to a position (0-180 degrees mapped to pulse length)
+void moveServo(uint8_t servoNum, uint8_t angle) {
+  // Map angle (0-180) to pulse length (SERVOMIN-SERVOMAX)
+  uint16_t pulse = map(angle, 0, 180, SERVOMIN, SERVOMAX);
+  pwm.setPWM(servoNum, 0, pulse);
+}
+
+void moveServoSmoothly(uint8_t servoNum, int target_angle, int speed = DEFAULT_SPEED) {
+  target_angle = constrain(target_angle, 0, 180);  // Keep within servo range
+
+  int start_angle = current_angles[servoNum]; // Get current position
+  int angle_diff = abs(target_angle - start_angle);
+  
+  if (angle_diff == 0) return;  // No movement needed
+
+  int step_delay = map(speed, 1, 100, 50, 5); // Map speed (1 slow, 100 fast)
+
+  // Gradual movement loop
+  for (int i = 1; i <= angle_diff; i++) {
+    int intermediate_angle = start_angle + (target_angle > start_angle ? i : -i);
+    uint16_t pulse = map(intermediate_angle, 0, 180, SERVOMIN, SERVOMAX);
+    pwm.setPWM(servoNum, 0, pulse);
+    delay(step_delay);
+  }
+
+  // Update current angle
+  current_angles[servoNum] = target_angle;
+}
+
+void moveServosToAngles(int servos[], int angles[], int num_servos, int speed = DEFAULT_SPEED) {
+  for (int i = 0; i < num_servos; i++) {
+    moveServoSmoothly(servos[i], angles[i], speed);
   }
 }
 
@@ -211,6 +270,11 @@ void setup() {
     while (1);
   }
   Serial.println("VL53L0X ready!");
+
+  pwm.begin();
+  pwm.setOscillatorFrequency(27000000);
+  pwm.setPWMFreq(SERVO_FREQ);
+  delay(10);
 
   // Initialize the MPU6050
   Serial.println("Initializing MPU6050...");
@@ -240,6 +304,8 @@ void setup() {
   
   digitalWrite(EnablePin1, HIGH);
   digitalWrite(EnablePin2, HIGH);
+
+  moveServoSmoothly(BASE_SERVO, 90);
 }
 
 // --- MAIN LOOP ---
