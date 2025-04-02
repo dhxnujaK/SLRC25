@@ -9,6 +9,9 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 #define SERVOMIN  150  // Minimum pulse length count (out of 4096)
 #define SERVOMAX  600  // Maximum pulse length count (out of 4096)
 
+#define SERVOMIN_1  102  // Minimum pulse length count (out of 4096)
+#define SERVOMAX_1  492  // Maximum pulse length count (out of 4096)
+
 // Servo channels for robot arm joints
 #define BASE_SERVO      0
 #define ARM_SERVO       1
@@ -50,6 +53,27 @@ void moveServoSmoothly(uint8_t servoNum, int target_angle, int speed = DEFAULT_S
   current_angles[servoNum] = target_angle;
 }
 
+void moveServoSmoothlyUpper(uint8_t servoNum, int target_angle, int speed = DEFAULT_SPEED) {
+  target_angle = constrain(target_angle, 0, 180);  
+
+  int start_angle = current_angles[servoNum];
+  int angle_diff = abs(target_angle - start_angle);
+
+  if (angle_diff == 0) return;  // No need to move
+
+  int step_delay = map(speed, 1, 100, 50, 5); // Speed mapping
+
+  for (int i = 1; i <= angle_diff; i++) {
+      int intermediate_angle = start_angle + (target_angle > start_angle ? i : -i);
+      uint16_t pulse = map(intermediate_angle, 0, 180, SERVOMIN_1, SERVOMAX_1);
+      pwm.setPWM(servoNum, 0, pulse);
+      delay(step_delay);
+  }
+
+  current_angles[servoNum] = target_angle;
+}
+
+
 void moveServosToAngles(int servos[], int angles[], int num_servos, int speed = DEFAULT_SPEED) {
   for (int i = 0; i < num_servos; i++) {
     moveServoSmoothly(servos[i], angles[i], speed);
@@ -73,20 +97,23 @@ void setup() {
   moveServo(WRIST_SERVO, 0); delay(500); // lower values for upward position
   moveServo(GRIPPER_SERVO, 98); delay(500); // 98 for open, 68 for closed */
   moveServoSmoothly(BASE_SERVO, 90); delay(1000);
-  moveServoSmoothly(ARM_SERVO, 90); delay(1000);
-  moveServoSmoothly(WRIST_SERVO, 90); delay(1000);
+  moveServoSmoothly(ARM_SERVO, 110); delay(1000);
+  moveServoSmoothlyUpper(WRIST_SERVO, 20); delay(1000);
   //moveServoSmoothly(BASE_SERVO, 60);
   Serial.println("Base servo moved to 90 degrees.");
   //moveServoSmoothly(ARM_SERVO, 100);
   
-
 }
 bool run = true;
 void loop() {
   // Example sequence: simple movements for each joint
+  moveServoSmoothly(GRIPPER_SERVO, 68, 20); delay(500);
+  moveServoSmoothlyUpper(WRIST_SERVO, 90, 40); delay(500); // lower values for upward position
   moveServoSmoothly(BASE_SERVO, 90, 20); delay(500);
   moveServoSmoothly(ARM_SERVO, 110, 20); delay(500);
-  moveServoSmoothly(WRIST_SERVO, 90, 20); delay(500);
+  moveServoSmoothlyUpper(WRIST_SERVO, 5, 40); delay(500);
+  moveServoSmoothly(ARM_SERVO, 116, 30); delay(500);
+  moveServoSmoothly(GRIPPER_SERVO, 98, 20); delay(500);
 
   if(!run) {
     //moveServo(BASE_SERVO, 45); delay(500);
@@ -107,6 +134,6 @@ void loop() {
 
 
 /* moveServo(BASE_SERVO, 90); delay(500);
-moveServo(ARM_SERVO, 110); delay(500);
-moveServo(WRIST_SERVO, 0); delay(500); // lower values for upward position
+moveServo(ARM_SERVO, 116); delay(500);
+moveServo(WRIST_SERVO, 5); delay(500); // lower values for upward position
 moveServo(GRIPPER_SERVO, 98); delay(500); // 98 for open, 68 for closed */   // values for drop ball
