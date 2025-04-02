@@ -16,12 +16,20 @@
 #define SERVOMIN  150  // Minimum pulse length count (out of 4096)
 #define SERVOMAX  600  // Maximum pulse length count (out of 4096)
 
+#define SERVOMIN_1  102  // Minimum pulse length count (out of 4096)
+#define SERVOMAX_1  492  // Maximum pulse length count (out of 4096)
+
 // Servo channels for robot arm joints
 #define BASE_SERVO      0
-#define SHOULDER_SERVO  1
-#define ELBOW_SERVO     2
-#define WRIST_SERVO     3
-#define GRIPPER_SERVO   4
+#define ARM_SERVO       1
+#define WRIST_SERVO     4
+#define GRIPPER_SERVO   3
+
+#define DEFAULT_SPEED 20  // Speed range: 1 (slow) to 100 (fast)
+
+int int_angles[4] = {90,90,90,90};
+int drop_angles[4] = {90,110,0,98};
+int current_angles[4] = {90,90,90,90};
 
 // --- MPU6050 Setup ---
 MPU6050 mpu(Wire);
@@ -57,11 +65,62 @@ Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 // --- Function to Set Motor Speeds ---
 void moveForward(int speed, float distance);
 void readRGB();
+void grab_ball();
 
+// Function to move a servo to a position (0-180 degrees mapped to pulse length)
 void moveServo(uint8_t servoNum, uint8_t angle) {
   // Map angle (0-180) to pulse length (SERVOMIN-SERVOMAX)
   uint16_t pulse = map(angle, 0, 180, SERVOMIN, SERVOMAX);
   pwm.setPWM(servoNum, 0, pulse);
+}
+
+void moveServoSmoothly(uint8_t servoNum, int target_angle, int speed = DEFAULT_SPEED) {
+  target_angle = constrain(target_angle, 0, 180);  // Keep within servo range
+
+  int start_angle = current_angles[servoNum]; // Get current position
+  int angle_diff = abs(target_angle - start_angle);
+  
+  if (angle_diff == 0) return;  // No movement needed
+
+  int step_delay = map(speed, 1, 100, 50, 5); // Map speed (1 slow, 100 fast)
+
+  // Gradual movement loop
+  for (int i = 1; i <= angle_diff; i++) {
+    int intermediate_angle = start_angle + (target_angle > start_angle ? i : -i);
+    uint16_t pulse = map(intermediate_angle, 0, 180, SERVOMIN, SERVOMAX);
+    pwm.setPWM(servoNum, 0, pulse);
+    delay(step_delay);
+  }
+
+  // Update current angle
+  current_angles[servoNum] = target_angle;
+}
+
+void moveServoSmoothlyUpper(uint8_t servoNum, int target_angle, int speed = DEFAULT_SPEED) {
+  target_angle = constrain(target_angle, 0, 180);  
+
+  int start_angle = current_angles[servoNum];
+  int angle_diff = abs(target_angle - start_angle);
+
+  if (angle_diff == 0) return;  // No need to move
+
+  int step_delay = map(speed, 1, 100, 50, 5); // Speed mapping
+
+  for (int i = 1; i <= angle_diff; i++) {
+      int intermediate_angle = start_angle + (target_angle > start_angle ? i : -i);
+      uint16_t pulse = map(intermediate_angle, 0, 180, SERVOMIN_1, SERVOMAX_1);
+      pwm.setPWM(servoNum, 0, pulse);
+      delay(step_delay);
+  }
+
+  current_angles[servoNum] = target_angle;
+}
+
+
+void moveServosToAngles(int servos[], int angles[], int num_servos, int speed = DEFAULT_SPEED) {
+  for (int i = 0; i < num_servos; i++) {
+    moveServoSmoothly(servos[i], angles[i], speed);
+  }
 }
 
 void setMotorSpeed(int left1, int left2, int right1, int right2) {
@@ -198,17 +257,8 @@ void moveUntillGreen(int speed) {
 
     if ((greenValue < redValue && greenValue < blueValue) && (redValue+blueValue+greenValue)/3 > 100) {
       stopAllMotors();
-      moveServo(BASE_SERVO, 45); delay(500);
-      moveServo(SHOULDER_SERVO, 120); delay(500);
-      moveServo(ELBOW_SERVO, 60); delay(500);
-      moveServo(WRIST_SERVO, 100); delay(500);
-      moveServo(GRIPPER_SERVO, 30); delay(1000);  // Close gripper
-    
-      moveServo(GRIPPER_SERVO, 90); delay(1000);  // Open gripper
-      moveServo(BASE_SERVO, 90); delay(500);
-      moveServo(SHOULDER_SERVO, 90); delay(500);
-      moveServo(ELBOW_SERVO, 90); delay(500);
-      moveServo(WRIST_SERVO, 90); delay(500);
+      Serial.println("Green detect56ed! Stopping...");
+      grab_ball();
       moveBackward(90,avgDist);
       break;
     }
@@ -225,7 +275,7 @@ void moveBackward(int speed) {
 
 // --- TURN BASED ON GYROSCOPE ---
 void turnLeft(int speed, float targetAngle) {
-  targetAngle += 58.13559;
+  targetAngle *= 2;
   mpu.update();
   float startYaw = mpu.getAngleZ();
   float targetYaw = startYaw + targetAngle;
@@ -248,7 +298,7 @@ void turnLeft(int speed, float targetAngle) {
 }
 
 void turnRight(int speed, float targetAngle) {
-  targetAngle += 58.13559;
+  targetAngle *= 2;
   mpu.update();
   float startYaw = mpu.getAngleZ();
   Serial.print("Turning Right: Target Yaw = ");
@@ -286,18 +336,17 @@ void readRGB() {
 }
 
 // servo function to move the gripper
-void moveGripper() {
-  moveServo(BASE_SERVO, 45); delay(500);
-  moveServo(SHOULDER_SERVO, 120); delay(500);
-  moveServo(ELBOW_SERVO, 60); delay(500);
-  moveServo(WRIST_SERVO, 100); delay(500);
-  moveServo(GRIPPER_SERVO, 30); delay(1000);  // Close gripper
+void grab_ball() {
+  moveServoSmoothly(GRIPPER_SERVO, 98);
+  moveServoSmoothly(BASE_SERVO, 90); delay(500);
+  moveServoSmoothly(ARM_SERVO,30); delay(500);
+  moveServoSmoothlyUpper(WRIST_SERVO,30); delay(500);
+  moveServoSmoothly(GRIPPER_SERVO,68); delay(500);
 
-  moveServo(GRIPPER_SERVO, 90); delay(1000);  // Open gripper
-  moveServo(BASE_SERVO, 90); delay(500);
-  moveServo(SHOULDER_SERVO, 90); delay(500);
-  moveServo(ELBOW_SERVO, 90); delay(500);
-  moveServo(WRIST_SERVO, 90); delay(500);
+  moveServoSmoothly(ARM_SERVO, 116);
+  moveServoSmoothlyUpper(WRIST_SERVO, 5);
+  moveServoSmoothly(GRIPPER_SERVO, 98); delay(500);
+  
 }
 
 // --- SETUP ---
@@ -364,11 +413,12 @@ void setup() {
   digitalWrite(EnablePin2, HIGH);
 
     // Initialize all servos to a neutral position
-    moveServo(BASE_SERVO, 90);
-    moveServo(SHOULDER_SERVO, 90);
-    moveServo(ELBOW_SERVO, 90);
-    moveServo(WRIST_SERVO, 90);
-    moveServo(GRIPPER_SERVO, 90);
+    moveServoSmoothly(BASE_SERVO, 90); delay(1000);
+    moveServoSmoothly(ARM_SERVO, 116); delay(1000);
+    moveServoSmoothlyUpper(WRIST_SERVO, 5); delay(1000);
+    moveServoSmoothly(GRIPPER_SERVO, 98); delay(1000);
+
+    Serial.println("Base servo moved to 90 degrees.");
 
 }
 
