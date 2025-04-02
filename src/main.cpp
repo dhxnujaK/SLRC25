@@ -99,6 +99,8 @@ void setup() {
   moveServoSmoothly(BASE_SERVO, 90); delay(1000);
   moveServoSmoothly(ARM_SERVO, 110); delay(1000);
   moveServoSmoothlyUpper(WRIST_SERVO, 20); delay(1000);
+  moveServoSmoothly(GRIPPER_SERVO, 98); delay(1000); // 98 for open, 68 for closed
+
   //moveServoSmoothly(BASE_SERVO, 60);
   Serial.println("Base servo moved to 90 degrees.");
   //moveServoSmoothly(ARM_SERVO, 100);
@@ -107,13 +109,20 @@ void setup() {
 bool run = true;
 void loop() {
   // Example sequence: simple movements for each joint
-  moveServoSmoothly(GRIPPER_SERVO, 68, 20); delay(500);
+  /* moveServoSmoothly(GRIPPER_SERVO, 68, 20); delay(500);
   moveServoSmoothlyUpper(WRIST_SERVO, 90, 40); delay(500); // lower values for upward position
   moveServoSmoothly(BASE_SERVO, 90, 20); delay(500);
   moveServoSmoothly(ARM_SERVO, 110, 20); delay(500);
   moveServoSmoothlyUpper(WRIST_SERVO, 5, 40); delay(500);
   moveServoSmoothly(ARM_SERVO, 116, 30); delay(500);
-  moveServoSmoothly(GRIPPER_SERVO, 98, 20); delay(500);
+  moveServoSmoothly(GRIPPER_SERVO, 98, 20); delay(500); */
+
+  moveServoSmoothly(ARM_SERVO,35, 20); delay(500);
+  moveServoSmoothly(WRIST_SERVO, 30, 20); delay(1000); // lower values for upward position
+  moveServoSmoothly(GRIPPER_SERVO, 68, 20); delay(500); // 98 for open, 68 for closed
+  moveServoSmoothly(ARM_SERVO, 116, 20); delay(500);
+  moveServoSmoothlyUpper(WRIST_SERVO, 5, 20); delay(500);
+  moveServoSmoothly(GRIPPER_SERVO, 98, 20); delay(500); // 98 for open, 68 for closed
 
   if(!run) {
     //moveServo(BASE_SERVO, 45); delay(500);
