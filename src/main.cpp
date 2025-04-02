@@ -12,7 +12,7 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 // Servo channels for robot arm joints
 #define BASE_SERVO      0
 #define ARM_SERVO       1
-#define WRIST_SERVO     2
+#define WRIST_SERVO     4
 #define GRIPPER_SERVO   3
 
 #define DEFAULT_SPEED 20  // Speed range: 1 (slow) to 100 (fast)
@@ -61,6 +61,7 @@ void setup() {
   Serial.println("Initializing Robot Arm Servos...");
 
   Wire.begin();  // Start I2C
+  Serial.println("I2C started.");
   pwm.begin();
   pwm.setOscillatorFrequency(27000000);
   pwm.setPWMFreq(SERVO_FREQ);
@@ -71,15 +72,21 @@ void setup() {
   moveServo(ARM_SERVO, 110); delay(500);
   moveServo(WRIST_SERVO, 0); delay(500); // lower values for upward position
   moveServo(GRIPPER_SERVO, 98); delay(500); // 98 for open, 68 for closed */
-
-  moveServoSmoothly(BASE_SERVO, 90);
-  moveServoSmoothly(ARM_SERVO, 120);
+  moveServoSmoothly(BASE_SERVO, 90); delay(1000);
+  moveServoSmoothly(ARM_SERVO, 90); delay(1000);
+  moveServoSmoothly(WRIST_SERVO, 90); delay(1000);
+  //moveServoSmoothly(BASE_SERVO, 60);
+  Serial.println("Base servo moved to 90 degrees.");
+  //moveServoSmoothly(ARM_SERVO, 100);
   
 
 }
 bool run = true;
 void loop() {
   // Example sequence: simple movements for each joint
+  moveServoSmoothly(BASE_SERVO, 90, 20); delay(500);
+  moveServoSmoothly(ARM_SERVO, 110, 20); delay(500);
+  moveServoSmoothly(WRIST_SERVO, 90, 20); delay(500);
 
   if(!run) {
     //moveServo(BASE_SERVO, 45); delay(500);
