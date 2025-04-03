@@ -1,7 +1,7 @@
 #include <Wire.h>
 #include <MPU6050_light.h>
 #include <Encoder.h>
-#include <Adafruit_VL53L0X.h>
+#include <Adafruit_VL53L0X.h> //for the TOF
 #include <Adafruit_PWMServoDriver.h>
 #include <EEPROM.h>
 
@@ -36,11 +36,12 @@
 
 // Servo configuration
 #define SERVO_FREQ 50  // Frequency for analog servos (Hz)
-#define SERVOMIN  150  // Minimum pulse length count (out of 4096)
+
+#define SERVOMIN  150  // Minimum pulse length count (out of 4096)//MG90
 #define SERVOMAX  600  // Maximum pulse length count (out of 4096)
 
-#define SERVOMIN_1  102  // Minimum pulse length count (out of 4096)
-#define SERVOMAX_1  492  // Maximum pulse length count (out of 4096)
+#define SERVOMIN_1  102  // Minimum pulse length count (out of 4096) //SG90
+#define SERVOMAX_1  492  // Maximum pulse length count (out of 4096) 
 
 // Servo channels for robot arm joints
 #define BASE_SERVO      0
@@ -50,16 +51,17 @@
 
 #define DEFAULT_SPEED 20  // Speed range: 1 (slow) to 100 (fast)
 
-int int_angles[4] = {90,90,90,90};
-int drop_angles[4] = {90,110,0,98};
-int current_angles[4] = {90,90,90,90};
+int int_angles[4] = {90,90,90,90}; // Initial position angles
+int drop_angles[4] = {90,110,0,98}; // Position for dropping objects
+int current_angles[4] = {90,90,90,90}; // Tracks current servo positions
 
 // --- MPU6050 Setup ---
-MPU6050 mpu(Wire);
+MPU6050 mpu(Wire);// Gyroscope for turning
 // Initialize the PWM driver at the default I2C address
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 // --- Encoders (All 4) ---
+                   // A , B
 Encoder encoderLeft1(34, 35);
 Encoder encoderLeft2(19, 18); // PID-controlled
 Encoder encoderRight1(26, 27);
@@ -76,16 +78,17 @@ const int EnablePin1 = 25, EnablePin2 = 24;
 
 // --- Robot Parameters ---
 const float WHEEL_DIAMETER_CM = 5.4;
-const int COUNTS_PER_REV = 100;
-const float GEAR_RATIO = 15;
+const int COUNTS_PER_REV = 100; //encorder pulses per full rotation of the shaft
+const float GEAR_RATIO = 15; //motor spins 15 times for 1 wheel rotation
 const float DISTANCE_PER_COUNT = (WHEEL_DIAMETER_CM * PI) / (COUNTS_PER_REV * GEAR_RATIO);
 
-// Variables to store pulse width measurements
+
+// Variables to store pulse width measurements 
 int redValue, greenValue, blueValue;
 
 int redVal_arm, greenVal_arm, blueVal_arm;
 
-Adafruit_VL53L0X lox = Adafruit_VL53L0X();
+Adafruit_VL53L0X lox = Adafruit_VL53L0X(); //tof sensor
 
 unsigned long calibrationStartTime;
 
@@ -108,10 +111,12 @@ void LEDnoblink(){
 }
 
 // Function to move a servo to a position (0-180 degrees mapped to pulse length)
-void moveServo(uint8_t servoNum, uint8_t angle) {
+void moveServo(uint8_t servoNum, uint8_t angle) { // There are 4 servos and servo num identifies which servo it is
+
   // Map angle (0-180) to pulse length (SERVOMIN-SERVOMAX)
   uint16_t pulse = map(angle, 0, 180, SERVOMIN, SERVOMAX);
   pwm.setPWM(servoNum, 0, pulse);
+  
 }
 
 void moveServoSmoothly(uint8_t servoNum, int target_angle, int speed = DEFAULT_SPEED) {
