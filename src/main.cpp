@@ -446,6 +446,8 @@ void setup() {
   pinMode(EnablePin1, OUTPUT);
   pinMode(EnablePin2, OUTPUT);
 
+  pinMode(LED, OUTPUT);
+
   pinMode(S0, OUTPUT);
   pinMode(S1, OUTPUT);
   pinMode(S2, OUTPUT);
@@ -453,11 +455,11 @@ void setup() {
   pinMode(OUT, INPUT);
 
   //for arm color sensor
-  pinMode(S0, OUTPUT);
-  pinMode(S1, OUTPUT);
-  pinMode(S2, OUTPUT);
-  pinMode(S3, OUTPUT);
-  pinMode(OUT, INPUT);
+  pinMode(S0_arm, OUTPUT);
+  pinMode(S1_arm, OUTPUT);
+  pinMode(S2_arm, OUTPUT);
+  pinMode(S3_arm, OUTPUT);
+  pinMode(OUT_arm, INPUT);
 
   // Set frequency scaling to 20% (recommended for better resolution)
   digitalWrite(S0, HIGH);
@@ -474,9 +476,9 @@ void setup() {
 
   Serial.println("Base servo moved to 90 degrees.");
 
-  // Configure frequency scaling
+/*   // Configure frequency scaling
   digitalWrite(S0, HIGH);
-  digitalWrite(S1, HIGH);
+  digitalWrite(S1, HIGH); */
   
   // Give some time for sensor initialization
   delay(500);
@@ -547,7 +549,7 @@ void startCalibration() {
   calibrateColor(255, 100, 0, orangeRed, orangeGreen, orangeBlue);
 
   // Save calibrated values to EEPROM
-  saveCalibrationToEEPROM(whiteRed, whiteGreen, whiteBlue, orangeRed, orangeGreen, orangeBlue);
+  //saveCalibrationToEEPROM(whiteRed, whiteGreen, whiteBlue, orangeRed, orangeGreen, orangeBlue); ********* Uncomment this line to save calibration values to EEPROM
 
   // Done with calibration, now wait for the next step
   Serial.println("Calibration complete. System will perform the task after 2 minutes.");
@@ -617,19 +619,19 @@ void performTask() {
 
 void readRGBArm(int &redVal_arm, int &greenVal_arm, int &blueVal_arm) {
   // Measure Red component
-  digitalWrite(S2, LOW);
-  digitalWrite(S3, LOW);
-  redVal_arm = pulseIn(OUT, LOW);
+  digitalWrite(S2_arm, LOW);
+  digitalWrite(S3_arm, LOW);
+  redVal_arm = pulseIn(OUT_arm, LOW);
 
   // Measure Green component
-  digitalWrite(S2, HIGH);
-  digitalWrite(S3, HIGH);
-  greenVal_arm = pulseIn(OUT, LOW);
+  digitalWrite(S2_arm, HIGH);
+  digitalWrite(S3_arm, HIGH);
+  greenVal_arm = pulseIn(OUT_arm, LOW);
 
   // Measure Blue component
-  digitalWrite(S2, LOW);
-  digitalWrite(S3, HIGH);
-  blueVal_arm = pulseIn(OUT, LOW);
+  digitalWrite(S2_arm, LOW);
+  digitalWrite(S3_arm, HIGH);
+  blueVal_arm = pulseIn(OUT_arm, LOW);
 }
 
 String detectColor() {
