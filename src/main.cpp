@@ -3,6 +3,7 @@
 #include <Encoder.h>
 #include <Adafruit_VL53L0X.h>
 #include <Adafruit_PWMServoDriver.h>
+#include <EEPROM.h>
 
 #define XSHUT_PIN 41
 #define S0 46
@@ -10,6 +11,28 @@
 #define S2 42
 #define S3 44
 #define OUT 43
+
+#define S0_arm 28
+#define S1_arm 26
+#define S2_arm 35
+#define S3_arm 34
+#define OUT_arm 29
+
+#define LED 13   // Pin for LED
+
+// Set color scale (you can adjust these based on your requirements)
+#define SCALE 1000  // Adjust this value as necessary
+
+// EEPROM locations to store calibration values
+#define EEPROM_WHITE_RED 0
+#define EEPROM_WHITE_GREEN 1
+#define EEPROM_WHITE_BLUE 2
+#define EEPROM_ORANGE_RED 3
+#define EEPROM_ORANGE_GREEN 4
+#define EEPROM_ORANGE_BLUE 5
+
+// Calibration time in milliseconds (2 minutes = 120000 ms)
+#define CALIBRATION_TIME_LIMIT 10000
 
 // Servo configuration
 #define SERVO_FREQ 50  // Frequency for analog servos (Hz)
@@ -60,12 +83,29 @@ const float DISTANCE_PER_COUNT = (WHEEL_DIAMETER_CM * PI) / (COUNTS_PER_REV * GE
 // Variables to store pulse width measurements
 int redValue, greenValue, blueValue;
 
+int redVal_arm, greenVal_arm, blueVal_arm;
+
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
+
+unsigned long calibrationStartTime;
+
+// Function declarations
+void startCalibration();
+void calibrateColor(int redFilter, int greenFilter, int blueFilter, int &redValue, int &greenValue, int &blueValue, int samples = 10);
+void saveCalibrationToEEPROM(int whiteRed, int whiteGreen, int whiteBlue, int orangeRed, int orangeGreen, int orangeBlue);
+void performTask();
 
 // --- Function to Set Motor Speeds ---
 void moveForward(int speed, float distance);
 void readRGB();
 void grab_ball();
+
+void LEDblink(){
+  digitalWrite(LED,HIGH);
+}
+void LEDnoblink(){
+  digitalWrite(LED,LOW);
+}
 
 // Function to move a servo to a position (0-180 degrees mapped to pulse length)
 void moveServo(uint8_t servoNum, uint8_t angle) {
@@ -348,9 +388,16 @@ void grab_ball() {
   moveServoSmoothly(GRIPPER_SERVO, 98); delay(500);
   
 }
-
+bool isRun = false;
 // --- SETUP ---
 void setup() {
+
+  if ((millis() - calibrationStartTime > CALIBRATION_TIME_LIMIT) || !isRun) {
+    // After calibration time window, we can no longer calibrate, so we perform the task
+    performTask();
+    isRun = true;
+  }
+
   Serial.begin(115200);
   Wire.begin();
 
@@ -405,6 +452,13 @@ void setup() {
   pinMode(S3, OUTPUT);
   pinMode(OUT, INPUT);
 
+  //for arm color sensor
+  pinMode(S0, OUTPUT);
+  pinMode(S1, OUTPUT);
+  pinMode(S2, OUTPUT);
+  pinMode(S3, OUTPUT);
+  pinMode(OUT, INPUT);
+
   // Set frequency scaling to 20% (recommended for better resolution)
   digitalWrite(S0, HIGH);
   digitalWrite(S1, LOW);
@@ -412,13 +466,23 @@ void setup() {
   digitalWrite(EnablePin1, HIGH);
   digitalWrite(EnablePin2, HIGH);
 
-    // Initialize all servos to a neutral position
-    moveServoSmoothly(BASE_SERVO, 90); delay(1000);
-    moveServoSmoothly(ARM_SERVO, 116); delay(1000);
-    moveServoSmoothlyUpper(WRIST_SERVO, 5); delay(1000);
-    moveServoSmoothly(GRIPPER_SERVO, 98); delay(1000);
+  // Initialize all servos to a neutral position
+  moveServoSmoothly(BASE_SERVO, 90); delay(1000);
+  moveServoSmoothly(ARM_SERVO, 116); delay(1000);
+  moveServoSmoothlyUpper(WRIST_SERVO, 5); delay(1000);
+  moveServoSmoothly(GRIPPER_SERVO, 98); delay(1000);
 
-    Serial.println("Base servo moved to 90 degrees.");
+  Serial.println("Base servo moved to 90 degrees.");
+
+  // Configure frequency scaling
+  digitalWrite(S0, HIGH);
+  digitalWrite(S1, HIGH);
+  
+  // Give some time for sensor initialization
+  delay(500);
+  
+  // Start the calibration process
+  startCalibration();
 
 }
 
@@ -464,4 +528,132 @@ void loop() {
   moveUntillGreen(90); // Move until green is detected
 
   delay(1000);
+}
+
+
+void startCalibration() {
+  // Start time measurement for calibration window
+  calibrationStartTime = millis(); // Record the starting time
+
+  // Calibration values for White and Orange
+  int whiteRed, whiteGreen, whiteBlue;
+  int orangeRed, orangeGreen, orangeBlue;
+
+  // Measure white color
+  calibrateColor(255, 255, 255, whiteRed, whiteGreen, whiteBlue);
+  //LEDblink();
+  delay(1000); // Wait for 1 second to stabilize the readings
+  // Measure orange color
+  calibrateColor(255, 100, 0, orangeRed, orangeGreen, orangeBlue);
+
+  // Save calibrated values to EEPROM
+  saveCalibrationToEEPROM(whiteRed, whiteGreen, whiteBlue, orangeRed, orangeGreen, orangeBlue);
+
+  // Done with calibration, now wait for the next step
+  Serial.println("Calibration complete. System will perform the task after 2 minutes.");
+}
+
+void calibrateColor(int redFilter, int greenFilter, int blueFilter, int &redValue, int &greenValue, int &blueValue, int samples = 10) {
+  // Measure Red intensity (average of multiple samples)
+  LEDblink();
+  redValue = 0;
+  for (int i = 0; i < samples; i++) {
+    digitalWrite(S2, redFilter);
+    digitalWrite(S3, greenFilter);
+    redValue += pulseIn(OUT, HIGH);
+    delay(10); // Small delay between readings
+  }
+  redValue /= samples; // Average
+
+  // Measure Green intensity
+  greenValue = 0;
+  for (int i = 0; i < samples; i++) {
+    digitalWrite(S2, greenFilter);
+    digitalWrite(S3, redFilter);
+    greenValue += pulseIn(OUT, HIGH);
+    delay(10);
+  }
+  greenValue /= samples;
+
+  // Measure Blue intensity
+  blueValue = 0;
+  for (int i = 0; i < samples; i++) {
+    digitalWrite(S2, blueFilter);
+    digitalWrite(S3, redFilter);
+    blueValue += pulseIn(OUT, HIGH);
+    delay(10);
+  }
+  blueValue /= samples;
+  delay(1000);
+  LEDnoblink(); // Turn off LED after calibration
+}
+
+void saveCalibrationToEEPROM(int whiteRed, int whiteGreen, int whiteBlue, int orangeRed, int orangeGreen, int orangeBlue) {
+  // Save white color values to EEPROM
+  EEPROM.write(EEPROM_WHITE_RED, whiteRed);
+  EEPROM.write(EEPROM_WHITE_GREEN, whiteGreen);
+  EEPROM.write(EEPROM_WHITE_BLUE, whiteBlue);
+
+  // Save orange color values to EEPROM
+  EEPROM.write(EEPROM_ORANGE_RED, orangeRed);
+  EEPROM.write(EEPROM_ORANGE_GREEN, orangeGreen);
+  EEPROM.write(EEPROM_ORANGE_BLUE, orangeBlue);
+}
+
+void performTask() {
+  // This function will perform the task once calibration is complete and the 2-minute window has passed.
+  
+  // Retrieve calibrated color values from EEPROM
+  int whiteRed = EEPROM.read(EEPROM_WHITE_RED);
+  int whiteGreen = EEPROM.read(EEPROM_WHITE_GREEN);
+  int whiteBlue = EEPROM.read(EEPROM_WHITE_BLUE);
+
+  int orangeRed = EEPROM.read(EEPROM_ORANGE_RED);
+  int orangeGreen = EEPROM.read(EEPROM_ORANGE_GREEN);
+  int orangeBlue = EEPROM.read(EEPROM_ORANGE_BLUE);
+
+}
+
+
+void readRGBArm(int &redVal_arm, int &greenVal_arm, int &blueVal_arm) {
+  // Measure Red component
+  digitalWrite(S2, LOW);
+  digitalWrite(S3, LOW);
+  redVal_arm = pulseIn(OUT, LOW);
+
+  // Measure Green component
+  digitalWrite(S2, HIGH);
+  digitalWrite(S3, HIGH);
+  greenVal_arm = pulseIn(OUT, LOW);
+
+  // Measure Blue component
+  digitalWrite(S2, LOW);
+  digitalWrite(S3, HIGH);
+  blueVal_arm = pulseIn(OUT, LOW);
+}
+
+String detectColor() {
+  // Retrieve calibration values from EEPROM
+  int whiteRed = EEPROM.read(EEPROM_WHITE_RED);
+  int whiteGreen = EEPROM.read(EEPROM_WHITE_GREEN);
+  int whiteBlue = EEPROM.read(EEPROM_WHITE_BLUE);
+
+  int orangeRed = EEPROM.read(EEPROM_ORANGE_RED);
+  int orangeGreen = EEPROM.read(EEPROM_ORANGE_GREEN);
+  int orangeBlue = EEPROM.read(EEPROM_ORANGE_BLUE);
+
+  // Read current RGB values
+  int redVal_arm, greenVal_arm, blueVal_arm;
+  readRGBArm(redVal_arm, greenVal_arm, blueVal_arm);
+
+  // Calculate Euclidean distances to white and orange
+  int distWhite = sqrt(pow(redVal_arm - whiteRed, 2) + pow(greenVal_arm - whiteGreen, 2) + pow(blueVal_arm - whiteBlue, 2));
+  int distOrange = sqrt(pow(redVal_arm - orangeRed, 2) + pow(greenVal_arm - orangeGreen, 2) + pow(blueVal_arm - orangeBlue, 2));
+
+  // Determine the closest color
+  if (distWhite < distOrange) {
+      return "White";
+  } else {
+      return "Orange";
+  }
 }
