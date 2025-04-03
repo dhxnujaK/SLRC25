@@ -3,6 +3,7 @@
 #include <Encoder.h>
 #include <Adafruit_VL53L0X.h>
 #include <Adafruit_PWMServoDriver.h>
+#include <EEPROM.h>
 
 #define XSHUT_PIN 41
 #define S0 46
@@ -11,13 +12,21 @@
 #define S3 44
 #define OUT 43
 
+// Arm Color Sensor (Updated pins to avoid conflict)
+#define ARM_S0 28
+#define ARM_S1 26
+#define ARM_S2 35
+#define ARM_S3 34
+#define ARM_OUT 29
+#define ARM_LED 13
+
 // Servo configuration
 #define SERVO_FREQ 50  // Frequency for analog servos (Hz)
 #define SERVOMIN  150  // Minimum pulse length count (out of 4096)
 #define SERVOMAX  600  // Maximum pulse length count (out of 4096)
 
 #define SERVOMIN_1  102  // Minimum pulse length count (out of 4096)
-#define SERVOMAX_1  492  // Maximum pulse length count (out of 4096)
+#define SERVOMAX_1  02  // Maximum pulse length count (out of 4096)
 
 // Servo channels for robot arm joints
 #define BASE_SERVO      0
@@ -26,6 +35,18 @@
 #define GRIPPER_SERVO   3
 
 #define DEFAULT_SPEED 20  // Speed range: 1 (slow) to 100 (fast)
+
+#define SCALE 1000
+#define EEPROM_WHITE_RED 0
+#define EEPROM_WHITE_GREEN 1
+#define EEPROM_WHITE_BLUE 2
+#define EEPROM_ORANGE_RED 3
+#define EEPROM_ORANGE_GREEN 4
+#define EEPROM_ORANGE_BLUE 5
+#define CALIBRATION_TIME_LIMIT 10000
+
+unsigned long calibrationStartTime;
+int armRed, armGreen, armBlue;
 
 int int_angles[4] = {90,90,90,90};
 int drop_angles[4] = {90,110,0,98};
@@ -66,6 +87,98 @@ Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 void moveForward(int speed, float distance);
 void readRGB();
 void grab_ball();
+void moveServoSmoothlyUpper(uint8_t servoNum, int target_angle, int speed = DEFAULT_SPEED);
+void moveServoSmoothly(uint8_t servoNum, int target_angle, int speed = DEFAULT_SPEED);
+
+void armLED(bool state) {
+  digitalWrite(ARM_LED, state);
+}
+void calibrateArmColor(int redFilter, int greenFilter, int blueFilter, int &redValue, int &greenValue, int &blueValue, int samples = 10) {
+  redValue = 0;
+  for (int i = 0; i < samples; i++) {
+    digitalWrite(ARM_S2, redFilter);
+    digitalWrite(ARM_S3, greenFilter);
+    redValue += pulseIn(ARM_OUT, HIGH);
+    delay(10); // Small delay between readings
+  }
+  redValue /= samples; // Average
+
+  // Measure Green intensity
+  greenValue = 0;
+  for (int i = 0; i < samples; i++) {
+    digitalWrite(ARM_S2, greenFilter);
+    digitalWrite(ARM_S3, redFilter);
+    greenValue += pulseIn(ARM_OUT, HIGH);
+    delay(10);
+  }
+  greenValue /= samples;
+
+  // Measure Blue intensity
+  blueValue = 0;
+  for (int i = 0; i < samples; i++) {
+    digitalWrite(ARM_S2, blueFilter);
+    digitalWrite(ARM_S3, redFilter);
+    blueValue += pulseIn(ARM_OUT, HIGH);
+    delay(10);
+  }
+  blueValue /= samples;
+  delay(1000);
+}
+
+String detectBallColor() {
+  int whiteRed = EEPROM.read(EEPROM_WHITE_RED);
+  int whiteGreen = EEPROM.read(EEPROM_WHITE_GREEN);
+  int whiteBlue = EEPROM.read(EEPROM_WHITE_BLUE);
+  
+  int orangeRed = EEPROM.read(EEPROM_ORANGE_RED);
+  int orangeGreen = EEPROM.read(EEPROM_ORANGE_GREEN);
+  int orangeBlue = EEPROM.read(EEPROM_ORANGE_BLUE);
+
+  // Simple threshold comparison
+  float whiteDist = sqrt(pow(armRed-whiteRed,2) + pow(armGreen-whiteGreen,2) + pow(armBlue-whiteBlue,2));
+  float orangeDist = sqrt(pow(armRed-orangeRed,2) + pow(armGreen-orangeGreen,2) + pow(armBlue-orangeBlue,2));
+
+  return (whiteDist < orangeDist) ? "WHITE" : "ORANGE";
+}
+
+
+
+// --- Modified Grab Function with Color Detection ---
+void grab_ball() {
+  // Original grab sequence
+  moveServoSmoothly(GRIPPER_SERVO, 98);
+  moveServoSmoothly(BASE_SERVO, 100);
+  delay(500);
+  moveServoSmoothly(BASE_SERVO, 90); 
+  delay(500);
+  moveServoSmoothly(ARM_SERVO,30);
+  delay(500);
+  moveServoSmoothlyUpper(WRIST_SERVO,40);
+  delay(1000);
+
+  // New: Detect ball color
+
+  calibrateArmColor(255,255,255,armRed, armGreen, armBlue);
+  String color = detectBallColor();
+  delay(1000);
+
+  moveServoSmoothly(GRIPPER_SERVO,68); 
+  delay(500);
+
+  
+  // Provide feedback
+  Serial.print("Detected: ");
+  Serial.println(color);
+  if (color == "WHITE") {
+    moveServoSmoothly(BASE_SERVO,100); // Move to drop position
+  }
+
+  // Continue with original sequence
+  moveServoSmoothly(ARM_SERVO, 116);
+  moveServoSmoothlyUpper(WRIST_SERVO, 5);
+  moveServoSmoothly(GRIPPER_SERVO, 98);
+  delay(500);
+}
 
 // Function to move a servo to a position (0-180 degrees mapped to pulse length)
 void moveServo(uint8_t servoNum, uint8_t angle) {
@@ -335,20 +448,6 @@ void readRGB() {
   blueValue = pulseIn(OUT, LOW);
 }
 
-// servo function to move the gripper
-void grab_ball() {
-  moveServoSmoothly(GRIPPER_SERVO, 98);
-  moveServoSmoothly(BASE_SERVO, 90); delay(500);
-  moveServoSmoothly(ARM_SERVO,30); delay(500);
-  moveServoSmoothlyUpper(WRIST_SERVO,30); delay(500);
-  moveServoSmoothly(GRIPPER_SERVO,68); delay(500);
-
-  moveServoSmoothly(ARM_SERVO, 116);
-  moveServoSmoothlyUpper(WRIST_SERVO, 5);
-  moveServoSmoothly(GRIPPER_SERVO, 98); delay(500);
-  
-}
-
 // --- SETUP ---
 void setup() {
   Serial.begin(115200);
@@ -384,6 +483,14 @@ void setup() {
   mpu.calcOffsets();
   Serial.println("Calibration Done!");
 
+    // Initialize arm color sensor
+    pinMode(ARM_S0, OUTPUT);
+    pinMode(ARM_S1, OUTPUT);
+    pinMode(ARM_S2, OUTPUT);
+    pinMode(ARM_S3, OUTPUT);
+    pinMode(ARM_OUT, INPUT);
+    pinMode(ARM_LED, OUTPUT);
+
   pinMode(leftMotor1PWMPin, OUTPUT);
   pinMode(leftMotor1DirPin1, OUTPUT);
   pinMode(leftMotor1DirPin2, OUTPUT);
@@ -408,13 +515,56 @@ void setup() {
   // Set frequency scaling to 20% (recommended for better resolution)
   digitalWrite(S0, HIGH);
   digitalWrite(S1, LOW);
+
+    // Set frequency scaling for arm sensor
+    digitalWrite(ARM_S0, HIGH);
+    digitalWrite(ARM_S1, HIGH);
+
+      // Calibrate arm sensor
+  calibrationStartTime = millis();
+  int whiteRed, whiteGreen, whiteBlue;
+  int orangeRed, orangeGreen, orangeBlue;
+  
+  for(int i=0; i<5; i++){
+    armLED(HIGH);
+    delay(200);
+    armLED(LOW);
+    delay(200);
+  }
+  // White calibration
+  armLED(HIGH);
+  delay(500);
+  calibrateArmColor(255,255,255,whiteRed, whiteGreen, whiteBlue);
+  Serial.print("White: ");
+  Serial.print(whiteRed); Serial.print(", ");
+  Serial.print(whiteGreen); Serial.print(", "); Serial.println(whiteBlue);
+  delay(500);
+  armLED(LOW);
+  delay(1000);
+  armLED(HIGH);
+  delay(500);
+  // Orange calibration
+  calibrateArmColor(255,255,255,orangeRed, orangeGreen, orangeBlue);
+  Serial.print("Orange: ");
+  Serial.print(orangeRed); Serial.print(", ");
+  Serial.print(orangeGreen); Serial.print(", "); Serial.println(orangeBlue);
+  delay(500);
+  armLED(LOW);
+  delay(1000);
+
+  EEPROM.write(EEPROM_WHITE_RED, whiteRed);
+  EEPROM.write(EEPROM_WHITE_GREEN, whiteGreen);
+  EEPROM.write(EEPROM_WHITE_BLUE, whiteBlue);
+  EEPROM.write(EEPROM_ORANGE_RED, orangeRed);
+  EEPROM.write(EEPROM_ORANGE_GREEN, orangeGreen);
+  EEPROM.write(EEPROM_ORANGE_BLUE, orangeBlue);
   
   digitalWrite(EnablePin1, HIGH);
   digitalWrite(EnablePin2, HIGH);
 
     // Initialize all servos to a neutral position
     moveServoSmoothly(BASE_SERVO, 90); delay(1000);
-    moveServoSmoothly(ARM_SERVO, 116); delay(1000);
+    moveServoSmoothly(ARM_SERVO, 110); delay(1000);
     moveServoSmoothlyUpper(WRIST_SERVO, 5); delay(1000);
     moveServoSmoothly(GRIPPER_SERVO, 98); delay(1000);
 
