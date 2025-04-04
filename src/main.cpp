@@ -3,6 +3,9 @@
 #include <Encoder.h>
 #include <Adafruit_VL53L0X.h>
 #include <Adafruit_PWMServoDriver.h>
+#include <EEPROM.h>
+
+#define LED 13
 
 #define XSHUT_PIN 41
 #define S0 46
@@ -10,6 +13,16 @@
 #define S2 42
 #define S3 44
 #define OUT 43
+
+// Arm Color Sensor
+#define ARM_S0 28
+#define ARM_S1 26
+#define ARM_S2 35
+#define ARM_S3 34
+#define ARM_OUT 29
+
+#define WHITE_ADDR 0       // EEPROM address for white color (0-5)
+#define YELLOW_ADDR 10     // EEPROM address for yellow color (10-15)
 
 // Servo configuration
 #define SERVO_FREQ 50  // Frequency for analog servos (Hz)
@@ -66,6 +79,57 @@ Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 void moveForward(int speed, float distance);
 void readRGB();
 void grab_ball();
+
+void readColor(int &r, int &g, int &b) {
+  digitalWrite(ARM_S2, LOW); digitalWrite(ARM_S3, LOW);   // RED
+  r = pulseIn(ARM_OUT, LOW);
+  delay(50);
+
+  digitalWrite(ARM_S2, HIGH); digitalWrite(ARM_S3, HIGH); // GREEN
+  g = pulseIn(ARM_OUT, LOW);
+  delay(50);
+
+  digitalWrite(ARM_S2, LOW); digitalWrite(ARM_S3, HIGH);  // BLUE
+  b = pulseIn(ARM_OUT, LOW);
+  delay(50);
+}
+void calibrateColor(String color) {
+  digitalWrite(LED, HIGH);
+  delay(1000);
+  int r, g, b;
+  Serial.println("Place the " + color + " ball under the sensor and press a key...");
+  while (!Serial.available()); Serial.read();  // wait for key
+
+  readColor(r, g, b);
+  Serial.println(color + " RGB: " + String(r) + ", " + String(g) + ", " + String(b));
+
+  int addr = (color == "white") ? WHITE_ADDR : YELLOW_ADDR;
+  EEPROM.put(addr, r);
+  EEPROM.put(addr + 2, g);
+  EEPROM.put(addr + 4, b);
+
+  Serial.println(color + " color data saved to EEPROM!");
+  digitalWrite(LED,LOW);
+}
+void readColorFromEEPROM(int addr, int &r, int &g, int &b) {
+  EEPROM.get(addr, r);
+  EEPROM.get(addr + 2, g);
+  EEPROM.get(addr + 4, b);
+}
+String identifyColor() {
+  int rNow, gNow, bNow;
+  readColor(rNow, gNow, bNow);
+
+  int rW, gW, bW, rY, gY, bY;
+  readColorFromEEPROM(WHITE_ADDR, rW, gW, bW);
+  readColorFromEEPROM(YELLOW_ADDR, rY, gY, bY);
+
+  long distWhite = sq(rNow - rW) + sq(gNow - gW) + sq(bNow - bW);
+  long distYellow = sq(rNow - rY) + sq(gNow - gY) + sq(bNow - bY);
+
+  return (distWhite < distYellow) ? "white" : "yellow";
+}
+
 
 // Function to move a servo to a position (0-180 degrees mapped to pulse length)
 void moveServo(uint8_t servoNum, uint8_t angle) {
@@ -341,7 +405,13 @@ void grab_ball() {
   moveServoSmoothly(BASE_SERVO, 90); delay(500);
   moveServoSmoothly(ARM_SERVO,30); delay(500);
   moveServoSmoothlyUpper(WRIST_SERVO,30); delay(500);
-  moveServoSmoothly(GRIPPER_SERVO,68); delay(500);
+  moveServoSmoothly(GRIPPER_SERVO,68); delay(1000);
+
+  String color = identifyColor();
+  if(color == "'white"){
+    moveServoSmoothly(BASE_SERVO,100);
+  }
+  delay(500);
 
   moveServoSmoothly(ARM_SERVO, 117);
   moveServoSmoothlyUpper(WRIST_SERVO, 0);
@@ -383,6 +453,27 @@ void setup() {
   delay(1000);
   mpu.calcOffsets();
   Serial.println("Calibration Done!");
+
+  pinMode(LED, OUTPUT);
+
+  // Arm color sensor
+  pinMode(ARM_S0, OUTPUT); pinMode(ARM_S1, OUTPUT);
+  pinMode(ARM_S2, OUTPUT); pinMode(ARM_S3, OUTPUT);
+  pinMode(ARM_OUT, INPUT);
+  
+  digitalWrite(ARM_S0, HIGH);  // 20% scaling
+  digitalWrite(ARM_S1, LOW);
+
+  /* for(int i=0; i<5; i++){
+    digitalWrite(LED, HIGH);
+    delay(200);
+    digitalWrite(LED, LOW);
+    delay(200);
+  }
+  calibrateColor("white");
+  delay(1000);
+  calibrateColor("yellow");
+  delay(1000); */
 
   pinMode(leftMotor1PWMPin, OUTPUT);
   pinMode(leftMotor1DirPin1, OUTPUT);
