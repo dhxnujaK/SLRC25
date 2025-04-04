@@ -162,7 +162,7 @@ void moveBackward(int speed, float distance) {
     float avgDist = (right2Dist + left2Dist) / 2.0;
 
     if (avgDist >= distance) {
-      moveForward(90, 1);
+      //moveForward(90, 1);
       stopAllMotors();
       break;
     }
@@ -343,8 +343,8 @@ void grab_ball() {
   moveServoSmoothlyUpper(WRIST_SERVO,30); delay(500);
   moveServoSmoothly(GRIPPER_SERVO,68); delay(500);
 
-  moveServoSmoothly(ARM_SERVO, 116);
-  moveServoSmoothlyUpper(WRIST_SERVO, 5);
+  moveServoSmoothly(ARM_SERVO, 117);
+  moveServoSmoothlyUpper(WRIST_SERVO, 0);
   moveServoSmoothly(GRIPPER_SERVO, 98); delay(500);
   
 }
@@ -455,11 +455,11 @@ void loop() {
   delay(500);
   moveForward(90); */
 
-  turnLeft(120,90);
+  turnLeft(150,90);
   delay(500);
   moveForward(90,30);
   delay(500);
-  turnRight(120,90);
+  turnRight(150,90);
   delay(500);
   moveUntillGreen(90); // Move until green is detected
 
