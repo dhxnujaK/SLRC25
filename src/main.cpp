@@ -5,7 +5,7 @@
 #include <Adafruit_PWMServoDriver.h>
 #include <EEPROM.h>
 
-#define LED 13
+#define LED 49
 
 #define XSHUT_PIN 41
 #define S0 46
@@ -33,16 +33,16 @@
 #define SERVOMAX_1  492  // Maximum pulse length count (out of 4096)
 
 // Servo channels for robot arm joints
-#define BASE_SERVO      0
-#define ARM_SERVO       1
-#define WRIST_SERVO     4
-#define GRIPPER_SERVO   3
+#define BASE_SERVO      5
+#define ARM_SERVO       6
+#define WRIST_SERVO     7
+#define GRIPPER_SERVO   8
 
 #define DEFAULT_SPEED 20  // Speed range: 1 (slow) to 100 (fast)
 
-int int_angles[4] = {90,90,90,90};
+int int_angles[4] = {80,90,90,90};
 int drop_angles[4] = {90,110,0,98};
-int current_angles[4] = {90,90,90,90};
+int current_angles[4] = {90,116,5,98};
 
 // --- MPU6050 Setup ---
 MPU6050 mpu(Wire);
@@ -72,6 +72,7 @@ const float DISTANCE_PER_COUNT = (WHEEL_DIAMETER_CM * PI) / (COUNTS_PER_REV * GE
 
 // Variables to store pulse width measurements
 int redValue, greenValue, blueValue;
+int ARM_red, ARM_green, ARM_blue;
 
 Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 
@@ -93,7 +94,7 @@ void readColor(int &r, int &g, int &b) {
   b = pulseIn(ARM_OUT, LOW);
   delay(50);
 }
-void calibrateColor(String color) {
+/* void calibrateColor(String color) {
   digitalWrite(LED, HIGH);
   delay(1000);
   int r, g, b;
@@ -110,7 +111,7 @@ void calibrateColor(String color) {
 
   Serial.println(color + " color data saved to EEPROM!");
   digitalWrite(LED,LOW);
-}
+} */
 void readColorFromEEPROM(int addr, int &r, int &g, int &b) {
   EEPROM.get(addr, r);
   EEPROM.get(addr + 2, g);
@@ -137,47 +138,55 @@ void moveServo(uint8_t servoNum, uint8_t angle) {
   uint16_t pulse = map(angle, 0, 180, SERVOMIN, SERVOMAX);
   pwm.setPWM(servoNum, 0, pulse);
 }
+// --- Add index mapping for servos (5-8 correspond to 0-3 in current_angles) ---
+int getServoIndex(uint8_t servoNum) {
+  if (servoNum < BASE_SERVO || servoNum > GRIPPER_SERVO) return -1; // Invalid servo
+  return servoNum - BASE_SERVO; // Maps 5-8 to 0-3
+}
 
+// --- Revised moveServoSmoothly function with fixes ---
 void moveServoSmoothly(uint8_t servoNum, int target_angle, int speed = DEFAULT_SPEED) {
-  target_angle = constrain(target_angle, 0, 180);  // Keep within servo range
-
-  int start_angle = current_angles[servoNum]; // Get current position
+  int index = getServoIndex(servoNum);
+  if (index < 0 || index >= 4) return; // Invalid servo
+  
+  target_angle = constrain(target_angle, 0, 180);
+  int start_angle = current_angles[index];
   int angle_diff = abs(target_angle - start_angle);
   
-  if (angle_diff == 0) return;  // No movement needed
+  if (angle_diff == 0) return; // No movement needed
 
-  int step_delay = map(speed, 1, 100, 50, 5); // Map speed (1 slow, 100 fast)
+  int step_delay = map(speed, 1, 100, 50, 5); // Adjust speed mapping
 
-  // Gradual movement loop
-  for (int i = 1; i <= angle_diff; i++) {
+  for (int i = 1; i <= angle_diff; i++) { // Fixed loop to run angle_diff steps
     int intermediate_angle = start_angle + (target_angle > start_angle ? i : -i);
     uint16_t pulse = map(intermediate_angle, 0, 180, SERVOMIN, SERVOMAX);
     pwm.setPWM(servoNum, 0, pulse);
     delay(step_delay);
   }
-
-  // Update current angle
-  current_angles[servoNum] = target_angle;
+  current_angles[index] = target_angle; // Update stored angle
 }
 
-void moveServoSmoothlyUpper(uint8_t servoNum, int target_angle, int speed = DEFAULT_SPEED) {
-  target_angle = constrain(target_angle, 0, 180);  
 
-  int start_angle = current_angles[servoNum];
+// --- Revised moveServoSmoothlyUpper for wrist servo with fixes ---
+void moveServoSmoothlyUpper(uint8_t servoNum, int target_angle, int speed = DEFAULT_SPEED) {
+  int index = getServoIndex(servoNum);
+  if (index < 0 || index >= 4) return;
+
+  target_angle = constrain(target_angle, 0, 180);  
+  int start_angle = current_angles[index];
   int angle_diff = abs(target_angle - start_angle);
 
-  if (angle_diff == 0) return;  // No need to move
+  if (angle_diff == 0) return;
 
-  int step_delay = map(speed, 1, 100, 50, 5); // Speed mapping
+  int step_delay = map(speed, 1, 100, 50, 5);
 
   for (int i = 1; i <= angle_diff; i++) {
-      int intermediate_angle = start_angle + (target_angle > start_angle ? i : -i);
-      uint16_t pulse = map(intermediate_angle, 0, 180, SERVOMIN_1, SERVOMAX_1);
-      pwm.setPWM(servoNum, 0, pulse);
-      delay(step_delay);
+    int intermediate_angle = start_angle + (target_angle > start_angle ? i : -i);
+    uint16_t pulse = map(intermediate_angle, 0, 180, SERVOMIN_1, SERVOMAX_1);
+    pwm.setPWM(servoNum, 0, pulse);
+    delay(step_delay);
   }
-
-  current_angles[servoNum] = target_angle;
+  current_angles[index] = target_angle;
 }
 
 
@@ -321,9 +330,10 @@ void moveUntillGreen(int speed) {
 
     if ((greenValue < redValue && greenValue < blueValue) && (redValue+blueValue+greenValue)/3 > 100) {
       stopAllMotors();
-      Serial.println("Green detect56ed! Stopping...");
+      Serial.println("Green detected! Stopping...");
+      moveBackward(90,4);
       grab_ball();
-      moveBackward(90,avgDist);
+      moveBackward(90, avgDist-4); 
       break;
     }
     setMotorSpeed(speed, speed, speed, speed);
@@ -399,21 +409,51 @@ void readRGB() {
   blueValue = pulseIn(OUT, LOW);
 }
 
+void blinkLED(){
+  for(int i=0; i<5; i++){
+    digitalWrite(LED, HIGH);
+    delay(200);
+    digitalWrite(LED, LOW);
+    delay(200);
+  }
+}
+
+bool CheckColor() {
+  int r, g, b;
+  blinkLED();
+  readColor(r, g, b); // Assuming this function updates r, g, b with the current color
+  delay(500);
+
+  // Define the threshold
+  const int threshold = 15;
+
+  // Check if the color is within the range
+  bool withinRange =
+    (r >= ARM_red - threshold && r <= ARM_red + threshold) &&
+    (g >= ARM_green - threshold && g <= ARM_green + threshold) &&
+    (b >= ARM_blue - threshold && b <= ARM_blue + threshold);
+
+  return withinRange;
+}
+
+
 // servo function to move the gripper
 void grab_ball() {
   moveServoSmoothly(GRIPPER_SERVO, 98);
   moveServoSmoothly(BASE_SERVO, 90); delay(500);
   moveServoSmoothly(ARM_SERVO,30); delay(500);
-  moveServoSmoothlyUpper(WRIST_SERVO,30); delay(500);
+  moveServoSmoothlyUpper(WRIST_SERVO, 35); delay(500);
+  bool color = CheckColor();
+  moveServoSmoothly(ARM_SERVO,22); delay(500);
+  moveServoSmoothlyUpper(WRIST_SERVO,27); delay(1000);
   moveServoSmoothly(GRIPPER_SERVO,68); delay(1000);
 
-  String color = identifyColor();
-  if(color == "'white"){
-    moveServoSmoothly(BASE_SERVO,100);
-  }
   delay(500);
 
   moveServoSmoothly(ARM_SERVO, 117);
+  if (!color) {
+    moveServoSmoothly(BASE_SERVO,120); delay(500);
+  }
   moveServoSmoothlyUpper(WRIST_SERVO, 0);
   moveServoSmoothly(GRIPPER_SERVO, 98); delay(500);
   
@@ -461,19 +501,20 @@ void setup() {
   pinMode(ARM_S2, OUTPUT); pinMode(ARM_S3, OUTPUT);
   pinMode(ARM_OUT, INPUT);
   
-  digitalWrite(ARM_S0, HIGH);  // 20% scaling
+  digitalWrite(ARM_S0, HIGH);  // 2% scaling
   digitalWrite(ARM_S1, LOW);
 
-  /* for(int i=0; i<5; i++){
-    digitalWrite(LED, HIGH);
-    delay(200);
-    digitalWrite(LED, LOW);
-    delay(200);
-  }
-  calibrateColor("white");
+  
+ /*  calibrateColor("white");
   delay(1000);
   calibrateColor("yellow");
-  delay(1000); */
+  delay(1000); */ 
+  blinkLED();
+  delay(500);
+  readColor(ARM_red, ARM_green, ARM_blue);
+  delay(500);
+  blinkLED();
+
 
   pinMode(leftMotor1PWMPin, OUTPUT);
   pinMode(leftMotor1DirPin1, OUTPUT);
@@ -497,16 +538,16 @@ void setup() {
   pinMode(OUT, INPUT);
 
   // Set frequency scaling to 20% (recommended for better resolution)
-  digitalWrite(S0, HIGH);
-  digitalWrite(S1, LOW);
+  digitalWrite(S0, LOW);
+  digitalWrite(S1, HIGH);
   
   digitalWrite(EnablePin1, HIGH);
   digitalWrite(EnablePin2, HIGH);
 
     // Initialize all servos to a neutral position
-    moveServoSmoothly(BASE_SERVO, 90); delay(1000);
     moveServoSmoothly(ARM_SERVO, 116); delay(1000);
     moveServoSmoothlyUpper(WRIST_SERVO, 5); delay(1000);
+    moveServoSmoothly(BASE_SERVO,80); delay(1000);
     moveServoSmoothly(GRIPPER_SERVO, 98); delay(1000);
 
     Serial.println("Base servo moved to 90 degrees.");
@@ -546,11 +587,11 @@ void loop() {
   delay(500);
   moveForward(90); */
 
-  turnLeft(150,90);
+  turnLeft(120,90);
   delay(500);
   moveForward(90,30);
   delay(500);
-  turnRight(150,90);
+  turnRight(120,90);
   delay(500);
   moveUntillGreen(90); // Move until green is detected
 
