@@ -571,46 +571,116 @@ void setup() {
 
 }
 
+void navigateObstacles() {
+  // Exit main grid and position at start of obstacle course
+  moveForward(60, 30);
+  delay(500);
+
+  float totalDistance = 0;
+  const float maxDistance = 120;
+  int gridState = 0; // 0 = horizontal movement, 1 = vertical movement
+
+  while (totalDistance < maxDistance) {
+    // Always check right side first
+
+    turnRight(120, 90);
+    delay(500);
+
+    VL53L0X_RangingMeasurementData_t measure;
+    lox.rangingTest(&measure, false);
+    
+    if (measure.RangeStatus != 4 && measure.RangeMilliMeter < 20) {
+      // Obstacle detected on right - realign and move forward
+      delay(500);
+      turnLeft(120, 90);
+      moveForward(60, 30);
+      totalDistance += 30;
+      
+      // Track movement pattern
+      gridState = (gridState == 0) ? 1 : 0;
+    } else {
+      // Clear path to right - take that path
+      moveForward(60, 30);
+      totalDistance += 30;
+      
+      // Turn back to main direction
+      turnLeft(120, 90);
+      moveForward(60, 30);
+      totalDistance += 30;
+      
+      // Alternate grid state
+      gridState = (gridState == 0) ? 1 : 0;
+    }
+
+    // Main forward movement with obstacle check
+    encoderRight2.write(0);
+    encoderLeft2.write(0);
+    setMotorSpeed(90, 90, 90, 90);
+    
+    while (totalDistance < maxDistance) {
+      long rightCount = abs(encoderRight2.read());
+      long leftCount = abs(encoderLeft2.read());
+      float currentDistance = ((rightCount + leftCount)/2.0) * DISTANCE_PER_COUNT;
+
+      lox.rangingTest(&measure, false);
+      if (measure.RangeStatus != 4 && measure.RangeMilliMeter < 100) {
+        stopAllMotors();
+        moveBackward(90, currentDistance);
+        totalDistance -= currentDistance;
+        
+        // Right-wall follow: turn right at obstacle
+        turnRight(120, 90);
+        break;
+      }
+
+      if (currentDistance >= 30) { // Reached next cell
+        stopAllMotors();
+        totalDistance += 30;
+        break;
+      }
+      
+      delay(10);
+    }
+    
+    // Final check for course completion
+    if (totalDistance >= maxDistance) break;
+    
+    // Alternate direction pattern
+    if (gridState == 1) {
+      turnRight(120, 90);
+      moveForward(90, 30);
+      totalDistance += 30;
+      turnRight(120, 90);
+    } else {
+      turnLeft(120, 90);
+      moveForward(90, 30);
+      totalDistance += 30;
+      turnLeft(120, 90);
+    }
+  }
+}
 // --- MAIN LOOP ---
 void loop() {
-  /* turnLeft(120, 90);      // Turn left by 90 degrees
-  delay(1000);
-  moveForward(90, 30);   // Move forward 30 cm
-  delay(500);
-  turnRight(120, 90);      // Turn left by 90 degrees
-  delay(500);
-  moveForward(90, 30);   // Move forward 30 cm
-  delay(500);
-  moveBackward(90, 30);   // Move backward 30 cm
-  delay(500);
-  turnLeft(120, 90);      // Turn left by 90 degrees
-  delay(500);
-  moveForward(90, 30);   // Move forward 30 cm
-  delay(500);
-  turnRight(120, 90);      // Turn left by 90 degrees
-  delay(500);
-  moveForward(90, 60);   // Move forward 30 cm
-  delay(500);
-  moveBackward(90, 60);   // Move backward 30 cm
-  delay(1000); */
+  static int loopCount = 0;
 
-  //moveForward(90);
-
-/*   turnLeft(120,90);
-  delay(500);
-  moveForward(90, 30);   // Move forward 30 cm
-  delay(500);
-  turnRight(120, 90);      // Turn left by 90 degrees
-  delay(500);
-  moveForward(90); */
-
-  turnLeft(120,90);
-  delay(500);
-  moveForward(90,30);
-  delay(500);
-  turnRight(120,90);
-  delay(500);
-  moveUntillGreen(90); // Move until green is detected
+  if (loopCount < 5) {
+    // Original loop behavior
+    turnLeft(120, 90);
+    delay(500);
+    moveForward(90, 30);
+    delay(500);
+    turnRight(120, 90);
+    delay(500);
+    moveUntillGreen(90);
+    delay(1000);
+    loopCount++;
+  }
+  
+  else if (loopCount == 5) {
+    // Execute obstacle navigation once
+    navigateObstacles();
+    loopCount++; // Prevent re-entry
+ }
 
   delay(1000);
 }
