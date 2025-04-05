@@ -40,6 +40,15 @@
 
 #define DEFAULT_SPEED 20  // Speed range: 1 (slow) to 100 (fast)
 
+enum State {
+  INIT_ENTRY,
+  TURN_RIGHT_TO_ROAD,
+  CHECK_FORWARD_AFTER_TURN,
+  MOVE_FORWARD_ON_ROAD,
+  ZIG_ZAG_LEFT,
+  ZIG_ZAG_RIGHT
+};
+
 int int_angles[4] = {80,90,90,90};
 int drop_angles[4] = {90,110,0,98};
 int current_angles[4] = {90,116,5,98};
@@ -271,7 +280,7 @@ void moveForward(int speed) {
         Serial.println("Obstacle detected! Reversing...");
         
         // Reverse the robot by the distance it traveled (avgDist)
-        moveBackward(90, avgDist);
+        //moveBackward(90, avgDist);
         break; // Exit the loop
       }
     } else {
@@ -573,6 +582,7 @@ void setup() {
 
 void navigateObstacles() {
   // Exit main grid and position at start of obstacle course
+  turnLeft(120, 90);
   moveForward(60, 30);
   delay(500);
 
@@ -589,7 +599,7 @@ void navigateObstacles() {
     VL53L0X_RangingMeasurementData_t measure;
     lox.rangingTest(&measure, false);
     
-    if (measure.RangeStatus != 4 && measure.RangeMilliMeter < 20) {
+    if (measure.RangeStatus != 4 && measure.RangeMilliMeter < 10) {
       // Obstacle detected on right - realign and move forward
       delay(500);
       turnLeft(120, 90);
@@ -623,7 +633,7 @@ void navigateObstacles() {
       float currentDistance = ((rightCount + leftCount)/2.0) * DISTANCE_PER_COUNT;
 
       lox.rangingTest(&measure, false);
-      if (measure.RangeStatus != 4 && measure.RangeMilliMeter < 100) {
+      if (measure.RangeStatus != 4 && measure.RangeMilliMeter < 10) {
         stopAllMotors();
         moveBackward(90, currentDistance);
         totalDistance -= currentDistance;
@@ -659,7 +669,10 @@ void navigateObstacles() {
     }
   }
 }
-// --- MAIN LOOP ---
+
+State currentState = INIT_ENTRY;
+bool lastTurnLeft = false;
+
 void loop() {
   static int loopCount = 0;
 
@@ -675,12 +688,50 @@ void loop() {
     delay(1000);
     loopCount++;
   }
-  
-  else if (loopCount == 5) {
-    // Execute obstacle navigation once
-    navigateObstacles();
-    loopCount++; // Prevent re-entry
- }
+  turnLeft(120, 90);
+
+  switch (currentState) {
+    case INIT_ENTRY:
+      moveForward(90,30); // Enter road from side
+      currentState = TURN_RIGHT_TO_ROAD;
+      break;
+
+    case TURN_RIGHT_TO_ROAD:
+      turnRight(120,90); // Align with road direction
+      currentState = CHECK_FORWARD_AFTER_TURN;
+      break;
+
+    case CHECK_FORWARD_AFTER_TURN:
+      VL53L0X_RangingMeasurementData_t measure;
+      lox.rangingTest(&measure, false);
+      if (measure.RangeMilliMeter < 15) { // Obstacle detected right after turn
+        currentState = ZIG_ZAG_LEFT; // Start zigzag maneuver
+      } else {
+        currentState = MOVE_FORWARD_ON_ROAD;
+      }
+      break;
+
+    case MOVE_FORWARD_ON_ROAD:
+      moveForward(90);
+      currentState = lastTurnLeft ? ZIG_ZAG_RIGHT : ZIG_ZAG_LEFT;
+      break;
+
+    case ZIG_ZAG_LEFT:
+      turnLeft(120,90);
+      moveForward(90,30); // Move diagonally left
+      turnRight(120,90); // Return to road direction
+      lastTurnLeft = true;
+      currentState = MOVE_FORWARD_ON_ROAD;
+      break;
+
+    case ZIG_ZAG_RIGHT:
+      turnRight(120,90);
+      moveForward(90,30); // Move diagonally right
+      turnLeft(120,90); // Return to road direction
+      lastTurnLeft = false;
+      currentState = MOVE_FORWARD_ON_ROAD;
+      break;
+  }
 
   delay(1000);
 }
