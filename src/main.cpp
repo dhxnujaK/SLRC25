@@ -307,19 +307,22 @@ void moveForward(int speed, float distance) {
 }
 
 void moveUntillGreen(int speed) {
+  // Reset all encoders at start
   encoderLeft1.write(0);
   encoderLeft2.write(0);
   encoderRight1.write(0);
   encoderRight2.write(0);
   Serial.println("Moving Forward");
+  float totalDist = 0;
 
   while (true) {
-        // Update encoder distances
-        long right2Count = abs(encoderRight2.read());
-        long left2Count = abs(encoderLeft2.read());
-        float right2Dist = right2Count * DISTANCE_PER_COUNT;
-        float left2Dist = left2Count * DISTANCE_PER_COUNT;
-        float avgDist = (right2Dist + left2Dist) / 2.0;
+    // Update encoder distances
+    long right2Count = abs(encoderRight2.read());
+    long left2Count = abs(encoderLeft2.read());
+    float right2Dist = right2Count * DISTANCE_PER_COUNT;
+    float left2Dist = left2Count * DISTANCE_PER_COUNT;
+    float avgDist = (right2Dist + left2Dist) / 2.0;
+
     readRGB();
     Serial.print("Red: ");
     Serial.print(redValue);
@@ -331,9 +334,23 @@ void moveUntillGreen(int speed) {
     if ((greenValue < redValue && greenValue < blueValue) && (redValue+blueValue+greenValue)/3 > 100) {
       stopAllMotors();
       Serial.println("Green detected! Stopping...");
-      moveBackward(90,4);
+      totalDist = avgDist; // Store total distance traveled
+      Serial.print("Total distance traveled: ");
+      Serial.println(totalDist);
+      
+      // Move back slightly to position for grab
+      moveBackward(30, 4);
+      
+      // Grab the ball
       grab_ball();
-      moveBackward(90, avgDist-4); 
+      
+      // Calculate remaining distance to return
+      float returnDist = totalDist - 4;
+      Serial.print("Returning distance: ");
+      Serial.println(returnDist);
+      
+      // Return to starting position
+      moveBackward(40, returnDist);
       break;
     }
     setMotorSpeed(speed, speed, speed, speed);
