@@ -275,7 +275,7 @@ void moveForward(int speed) {
       Serial.print("Distance (mm): ");
       Serial.println(measure.RangeMilliMeter);
 
-      if (measure.RangeMilliMeter < 100) { // Obstacle detected
+      if (measure.RangeMilliMeter < 110) { // Obstacle detected
         stopAllMotors();
         Serial.println("Obstacle detected! Reversing...");
         
@@ -672,9 +672,10 @@ void navigateObstacles() {
 
 State currentState = INIT_ENTRY;
 bool lastTurnLeft = false;
+bool is_run = false;
 
 void loop() {
-  static int loopCount = 0;
+/*   static int loopCount = 0;
 
   if (loopCount < 5) {
     // Original loop behavior
@@ -687,8 +688,12 @@ void loop() {
     moveUntillGreen(90);
     delay(1000);
     loopCount++;
+  } */
+  if(!is_run) {
+    turnLeft(120, 90);
+    is_run = true;
   }
-  turnLeft(120, 90);
+  
 
   switch (currentState) {
     case INIT_ENTRY:
@@ -704,7 +709,7 @@ void loop() {
     case CHECK_FORWARD_AFTER_TURN:
       VL53L0X_RangingMeasurementData_t measure;
       lox.rangingTest(&measure, false);
-      if (measure.RangeMilliMeter < 15) { // Obstacle detected right after turn
+      if (measure.RangeMilliMeter < 110) { // Obstacle detected right after turn
         currentState = ZIG_ZAG_LEFT; // Start zigzag maneuver
       } else {
         currentState = MOVE_FORWARD_ON_ROAD;
