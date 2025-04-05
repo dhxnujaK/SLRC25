@@ -24,6 +24,10 @@
 #define WHITE_ADDR 0       // EEPROM address for white color (0-5)
 #define YELLOW_ADDR 10     // EEPROM address for yellow color (10-15)
 
+#define EEPROM_WHITE_RED 0
+#define EEPROM_WHITE_GREEN 1
+#define EEPROM_WHITE_BLUE 2
+
 // Servo configuration
 #define SERVO_FREQ 50  // Frequency for analog servos (Hz)
 #define SERVOMIN  150  // Minimum pulse length count (out of 4096)
@@ -39,6 +43,9 @@
 #define GRIPPER_SERVO   8
 
 #define DEFAULT_SPEED 20  // Speed range: 1 (slow) to 100 (fast)
+
+const int calibrationButtonPin = 50;  // Push button connected to pin 2 and GND
+bool calibrationMode = false;
 
 int int_angles[4] = {80,90,90,90};
 int drop_angles[4] = {90,110,0,98};
@@ -312,14 +319,14 @@ void moveUntillGreen(int speed) {
   encoderRight1.write(0);
   encoderRight2.write(0);
   Serial.println("Moving Forward");
-
+  int dist =0;
   while (true) {
         // Update encoder distances
-        long right2Count = abs(encoderRight2.read());
-        long left2Count = abs(encoderLeft2.read());
-        float right2Dist = right2Count * DISTANCE_PER_COUNT;
-        float left2Dist = left2Count * DISTANCE_PER_COUNT;
-        float avgDist = (right2Dist + left2Dist) / 2.0;
+    long right2Count = abs(encoderRight2.read());
+    long left2Count = abs(encoderLeft2.read());
+    float right2Dist = right2Count * DISTANCE_PER_COUNT;
+    float left2Dist = left2Count * DISTANCE_PER_COUNT;
+    float avgDist = (right2Dist + left2Dist) / 2.0;
     readRGB();
     Serial.print("Red: ");
     Serial.print(redValue);
@@ -331,9 +338,12 @@ void moveUntillGreen(int speed) {
     if ((greenValue < redValue && greenValue < blueValue) && (redValue+blueValue+greenValue)/3 > 100) {
       stopAllMotors();
       Serial.println("Green detected! Stopping...");
+      dist = avgDist;
+      encoderLeft2.write(0);
+      encoderRight2.write(0);
       moveBackward(90,4);
       grab_ball();
-      moveBackward(90, avgDist-4); 
+      moveBackward(90, dist-4); 
       break;
     }
     setMotorSpeed(speed, speed, speed, speed);
@@ -462,8 +472,17 @@ void grab_ball() {
 // --- SETUP ---
 void setup() {
   Serial.begin(115200);
+  pinMode(calibrationButtonPin, INPUT_PULLUP);  // Enable internal pull-up resistor
+  delay(50);
   Wire.begin();
-
+  if (digitalRead(calibrationButtonPin) == LOW) {
+    // Button is pressed during power-on
+    calibrationMode = true;
+    
+  } else {
+    // Normal operation
+    calibrationMode = false;
+  }
   // Reset the sensor via XSHUT pin
   pinMode(XSHUT_PIN, OUTPUT);
   digitalWrite(XSHUT_PIN, LOW); // Hold in reset
@@ -504,17 +523,24 @@ void setup() {
   digitalWrite(ARM_S0, HIGH);  // 2% scaling
   digitalWrite(ARM_S1, LOW);
 
+  ARM_red = EEPROM.read(EEPROM_WHITE_RED);
+  ARM_green = EEPROM.read(EEPROM_WHITE_GREEN);
+  ARM_blue = EEPROM.read(EEPROM_WHITE_BLUE);
   
  /*  calibrateColor("white");
   delay(1000);
   calibrateColor("yellow");
   delay(1000); */ 
-  blinkLED();
-  delay(500);
-  readColor(ARM_red, ARM_green, ARM_blue);
-  delay(500);
-  blinkLED();
-
+  if (calibrationMode) {
+    blinkLED();
+    delay(500);
+    readColor(ARM_red, ARM_green, ARM_blue);
+    delay(500);
+    blinkLED();
+    EEPROM.update(EEPROM_WHITE_RED, ARM_red);
+    EEPROM.update(EEPROM_WHITE_GREEN, ARM_green);
+    EEPROM.update(EEPROM_WHITE_BLUE, ARM_blue);
+  }
 
   pinMode(leftMotor1PWMPin, OUTPUT);
   pinMode(leftMotor1DirPin1, OUTPUT);
@@ -544,13 +570,14 @@ void setup() {
   digitalWrite(EnablePin1, HIGH);
   digitalWrite(EnablePin2, HIGH);
 
-    // Initialize all servos to a neutral position
+  // Initialize all servos to a neutral position
+  if(!calibrationMode){
     moveServoSmoothly(ARM_SERVO, 116); delay(1000);
     moveServoSmoothlyUpper(WRIST_SERVO, 5); delay(1000);
     moveServoSmoothly(BASE_SERVO,80); delay(1000);
     moveServoSmoothly(GRIPPER_SERVO, 98); delay(1000);
-
     Serial.println("Base servo moved to 90 degrees.");
+  }
 
 }
 
@@ -586,14 +613,16 @@ void loop() {
   turnRight(120, 90);      // Turn left by 90 degrees
   delay(500);
   moveForward(90); */
+  if(!calibrationMode){
+    turnLeft(120,90);
+    delay(500);
+    moveForward(90,30);
+    delay(500);
+    turnRight(120,90);
+    delay(500);
+    moveUntillGreen(90); // Move until green is detected
+  }
 
-  turnLeft(120,90);
-  delay(500);
-  moveForward(90,30);
-  delay(500);
-  turnRight(120,90);
-  delay(500);
-  moveUntillGreen(90); // Move until green is detected
 
   delay(1000);
 }
