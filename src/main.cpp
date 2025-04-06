@@ -5,6 +5,12 @@
 #include <Adafruit_PWMServoDriver.h>
 #include <EEPROM.h>
 
+#define IR_SENSOR1 A0
+#define IR_SENSOR2 A1
+#define IR_SENSOR3 A2
+#define IR_SENSOR4 A3
+#define IR_SENSOR5 A4
+
 #define LED 49
 
 #define XSHUT_PIN 41
@@ -37,8 +43,23 @@
 #define ARM_SERVO       6
 #define WRIST_SERVO     7
 #define GRIPPER_SERVO   8
+#define YELLOW_SERVO    13
+#define WHITE_SERVO     14
 
 #define DEFAULT_SPEED 20  // Speed range: 1 (slow) to 100 (fast)
+
+#define NUM_BARCODE_BITS 4       // For 4-bit barcode (0-15)
+#define BARCODE_START_DELAY 1000 // Delay before starting barcode scan
+#define BARCODE_TIMEOUT 5000 
+
+enum State {
+  INIT_ENTRY,
+  TURN_RIGHT_TO_ROAD,
+  CHECK_FORWARD_AFTER_TURN,
+  MOVE_FORWARD_ON_ROAD,
+  ZIG_ZAG_LEFT,
+  ZIG_ZAG_RIGHT
+};
 
 int int_angles[4] = {80,90,90,90};
 int drop_angles[4] = {90,110,0,98};
@@ -266,12 +287,12 @@ void moveForward(int speed) {
       Serial.print("Distance (mm): ");
       Serial.println(measure.RangeMilliMeter);
 
-      if (measure.RangeMilliMeter < 100) { // Obstacle detected
+      if (measure.RangeMilliMeter < 110) { // Obstacle detected
         stopAllMotors();
         Serial.println("Obstacle detected! Reversing...");
         
         // Reverse the robot by the distance it traveled (avgDist)
-        moveBackward(90, avgDist);
+        //moveBackward(90, avgDist);
         break; // Exit the loop
       }
     } else {
@@ -573,6 +594,7 @@ void setup() {
 
 void navigateObstacles() {
   // Exit main grid and position at start of obstacle course
+  turnLeft(120, 90);
   moveForward(60, 30);
   delay(500);
 
@@ -589,7 +611,7 @@ void navigateObstacles() {
     VL53L0X_RangingMeasurementData_t measure;
     lox.rangingTest(&measure, false);
     
-    if (measure.RangeStatus != 4 && measure.RangeMilliMeter < 20) {
+    if (measure.RangeStatus != 4 && measure.RangeMilliMeter < 10) {
       // Obstacle detected on right - realign and move forward
       delay(500);
       turnLeft(120, 90);
@@ -623,7 +645,7 @@ void navigateObstacles() {
       float currentDistance = ((rightCount + leftCount)/2.0) * DISTANCE_PER_COUNT;
 
       lox.rangingTest(&measure, false);
-      if (measure.RangeStatus != 4 && measure.RangeMilliMeter < 100) {
+      if (measure.RangeStatus != 4 && measure.RangeMilliMeter < 10) {
         stopAllMotors();
         moveBackward(90, currentDistance);
         totalDistance -= currentDistance;
@@ -659,11 +681,133 @@ void navigateObstacles() {
     }
   }
 }
-// --- MAIN LOOP ---
+
+State currentState = INIT_ENTRY;
+bool lastTurnLeft = false;
+bool is_run = false;
+
+int readBarcode() {
+  Serial.println("Starting barcode scan...");
+  delay(BARCODE_START_DELAY);
+  
+  // 1. Sensor Calibration
+  int whiteLevel = 0;
+  int blackLevel = 0;
+  for(int i=0; i<5; i++) {
+    whiteLevel += analogRead(IR_SENSOR3); // Center sensor
+    delay(10);
+  }
+  whiteLevel /= 5;
+  blackLevel = whiteLevel * 0.6; // Empirical threshold
+
+  // 2. Barcode Pattern Detection
+  unsigned long startTime = millis();
+  bool lastState = false;
+  bool currentState = false;
+  float stripeWidths[NUM_BARCODE_BITS] = {0};
+  int stripeCount = 0;
+  float totalWidth = 0;
+  
+  encoderRight2.write(0); // Reset encoder
+  
+  while((millis() - startTime) < BARCODE_TIMEOUT && stripeCount < NUM_BARCODE_BITS) {
+    currentState = (analogRead(IR_SENSOR3) < blackLevel);
+    
+    if(currentState != lastState) { // Edge detection
+      float currentDist = abs(encoderRight2.read()) * DISTANCE_PER_COUNT;
+      
+      if(stripeCount > 0) {
+        float width = currentDist - totalWidth;
+        stripeWidths[stripeCount-1] = width;
+      }
+      
+      totalWidth = currentDist;
+      stripeCount++;
+      lastState = currentState;
+    }
+    
+    delay(10);
+  }
+
+  // 3. Width Analysis
+  if(stripeCount < NUM_BARCODE_BITS) return -1;
+  
+  int barcodeValue = 0;
+  for(int i=0; i<NUM_BARCODE_BITS; i++) {
+    bool bitValue = (stripeWidths[i] >= 5.5); // 6cm = 1, 3cm = 0 (with tolerance)
+    barcodeValue |= bitValue << (NUM_BARCODE_BITS-1 - i);
+  }
+
+  // 4. Validation Check
+  float totalBarcodeWidth = 0;
+  for(int i=0; i<NUM_BARCODE_BITS; i++) {
+    totalBarcodeWidth += stripeWidths[i];
+  }
+  
+  // Expected width for 4 bits: 4*3cm + 3 spaces = ~21cm (with tolerance)
+  if(totalBarcodeWidth < 18 || totalBarcodeWidth > 24) return -1;
+
+  return barcodeValue;
+}
+
+// Improved barcode handling with color sorting
+void handleBarcodeValue(int value) {
+  if(value < 0 || value > 15) {
+    Serial.println("Invalid barcode!");
+    return;
+  }
+
+  Serial.print("Valid barcode detected: ");
+  Serial.println(value);
+  digitalWrite(LED, HIGH);
+  
+  // Determine basket configuration
+  bool evenNumber = (value % 2 == 0);
+  String targetGood = evenNumber ? "RED" : "BLUE";
+  String targetBad = evenNumber ? "BLUE" : "RED";
+  
+  Serial.print("Good potatoes -> ");
+  Serial.println(targetGood);
+  Serial.print("Bad potatoes -> ");
+  Serial.println(targetBad);
+
+  // Move servos to sorting positions
+  if(evenNumber) {
+    moveServoSmoothly(YELLOW_SERVO, 0);   // Red basket position
+    moveServoSmoothly(WHITE_SERVO, 180);  // Blue basket position
+  } else {
+    moveServoSmoothly(YELLOW_SERVO, 180); // Blue basket position
+    moveServoSmoothly(WHITE_SERVO, 0);    // Red basket position
+  }
+
+  // Visual confirmation
+  for(int i=0; i<3; i++) {
+    digitalWrite(LED, HIGH);
+    delay(200);
+    digitalWrite(LED, LOW);
+    delay(200);
+  }
+}
+
+
 void loop() {
+  static bool barcodeProcessed = false;
+  
+  if(!barcodeProcessed) {
+    VL53L0X_RangingMeasurementData_t measure;
+    lox.rangingTest(&measure, false);
+    
+    if(measure.RangeMilliMeter < 150) { // Barcode in front of robot
+      int barcodeValue = readBarcode();
+      handleBarcodeValue(barcodeValue);
+      barcodeProcessed = true;
+      return; // Skip other operations until barcode processed
+    }
+  }
+
   static int loopCount = 0;
 
-  if (loopCount < 5) {
+  while (loopCount < 5) {
     // Original loop behavior
     turnLeft(120, 90);
     delay(500);
@@ -674,13 +818,54 @@ void loop() {
     moveUntillGreen(90);
     delay(1000);
     loopCount++;
+  } 
+  if(!is_run) {
+    turnLeft(120, 90);
+    is_run = true;
   }
   
-  else if (loopCount == 5) {
-    // Execute obstacle navigation once
-    navigateObstacles();
-    loopCount++; // Prevent re-entry
- }
+  switch (currentState) {
+    case INIT_ENTRY:
+      moveForward(90,30); // Enter road from side
+      currentState = TURN_RIGHT_TO_ROAD;
+      break;
+
+    case TURN_RIGHT_TO_ROAD:
+      turnRight(120,90); // Align with road direction
+      currentState = CHECK_FORWARD_AFTER_TURN;
+      break;
+
+    case CHECK_FORWARD_AFTER_TURN:
+      VL53L0X_RangingMeasurementData_t measure;
+      lox.rangingTest(&measure, false);
+      if (measure.RangeMilliMeter < 110) { // Obstacle detected right after turn
+        currentState = ZIG_ZAG_LEFT; // Start zigzag maneuver
+      } else {
+        currentState = MOVE_FORWARD_ON_ROAD;
+      }
+      break;
+
+    case MOVE_FORWARD_ON_ROAD:
+      moveForward(90);
+      currentState = lastTurnLeft ? ZIG_ZAG_RIGHT : ZIG_ZAG_LEFT;
+      break;
+
+    case ZIG_ZAG_LEFT:
+      turnLeft(120,90);
+      moveForward(90,30); // Move diagonally left
+      turnRight(120,90); // Return to road direction
+      lastTurnLeft = true;
+      currentState = MOVE_FORWARD_ON_ROAD;
+      break;
+
+    case ZIG_ZAG_RIGHT:
+      turnRight(120,90);
+      moveForward(90,30); // Move diagonally right
+      turnLeft(120,90); // Return to road direction
+      lastTurnLeft = false;
+      currentState = MOVE_FORWARD_ON_ROAD;
+      break;
+  }
 
   delay(1000);
 }
