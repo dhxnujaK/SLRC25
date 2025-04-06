@@ -23,6 +23,10 @@
 
 #define WHITE_ADDR 0       // EEPROM address for white color (0-5)
 #define YELLOW_ADDR 10     // EEPROM address for yellow color (10-15)
+// EEPROM locations to store calibration values
+#define EEPROM_WHITE_RED 0
+#define EEPROM_WHITE_GREEN 1
+#define EEPROM_WHITE_BLUE 2
 
 // Servo configuration
 #define SERVO_FREQ 50  // Frequency for analog servos (Hz)
@@ -39,6 +43,12 @@
 #define GRIPPER_SERVO   8
 
 #define DEFAULT_SPEED 20  // Speed range: 1 (slow) to 100 (fast)
+
+const int calibrationButtonPin = 50;  // Push button connected to pin 2 and GND
+bool calibrationMode = false;
+
+const int taskPin = 51;
+bool taskMode = false; // Flag to indicate task mode
 
 enum State {
   INIT_ENTRY,
@@ -498,6 +508,10 @@ void grab_ball() {
 void setup() {
   Serial.begin(115200);
   Wire.begin();
+  pinMode(calibrationButtonPin, INPUT_PULLUP);
+  delay(50);
+  pinMode(taskPin, INPUT_PULLUP);
+  delay(50);
 
   // Reset the sensor via XSHUT pin
   pinMode(XSHUT_PIN, OUTPUT);
@@ -544,11 +558,28 @@ void setup() {
   delay(1000);
   calibrateColor("yellow");
   delay(1000); */ 
-  blinkLED();
-  delay(500);
-  readColor(ARM_red, ARM_green, ARM_blue);
-  delay(500);
-  blinkLED();
+  if (digitalRead(calibrationButtonPin) == LOW) {
+    blinkLED();
+    delay(500);
+    readColor(ARM_red, ARM_green, ARM_blue);
+    delay(500);
+    blinkLED();
+    calibrationMode = true;
+  }else{
+    calibrationMode = false;
+  }
+  if(digitalRead(taskPin) == LOW) {
+    blinkLED();
+    delay(500);
+    taskMode = true;
+  }
+  else{
+    taskMode = false;
+  }
+  ARM_red = EEPROM.read(EEPROM_WHITE_RED);
+  ARM_green = EEPROM.read(EEPROM_WHITE_GREEN);
+  ARM_blue = EEPROM.read(EEPROM_WHITE_BLUE);
+ 
 
 
   pinMode(leftMotor1PWMPin, OUTPUT);
@@ -687,74 +718,78 @@ int distance = 0;
 void loop() {
   static int loopCount = 0;
 
-  while (loopCount < 5) {
-    // Original loop behavior
-    turnLeft(120, 90);
-    delay(500);
-    moveForward(90, 30);
-    delay(500);
-    turnRight(120, 90);
-    delay(500);
-    moveUntillGreen(90);
-    delay(1000);
-    loopCount++;
-  } 
-  if(!is_run) {
-    turnLeft(120, 90);
-    is_run = true;
-  }
-  if(distance < 120) {
-    switch (currentState) {
-      case INIT_ENTRY:
-        moveForward(90,30); // Enter road from side
-        currentState = TURN_RIGHT_TO_ROAD;
-        break;
-  
-      case TURN_RIGHT_TO_ROAD:
-        turnRight(120,90); // Align with road direction
-        currentState = CHECK_FORWARD_AFTER_TURN;
-        break;
-  
-      case CHECK_FORWARD_AFTER_TURN:
-        VL53L0X_RangingMeasurementData_t measure;
-        lox.rangingTest(&measure, false);
-        if (measure.RangeMilliMeter < 110) { // Obstacle detected right after turn
-          currentState = ZIG_ZAG_LEFT; // Start zigzag maneuver
-        } else {
-          currentState = MOVE_FORWARD_ON_ROAD;
+  if(!calibrationMode) {
+    while (loopCount < 5) {
+      if(taskMode){
+        // Original loop behavior
+      turnLeft(120, 90);
+      delay(500);
+      moveForward(90, 30);
+      delay(500);
+      turnRight(120, 90);
+      delay(500);
+      moveUntillGreen(90);
+      delay(1000);
+      loopCount++;
+      }
+    } 
+    if(!is_run) {
+      turnLeft(120, 90);
+      is_run = true;
+    }
+    if(distance < 120) {
+      switch (currentState) {
+        case INIT_ENTRY:
+          moveForward(90,30); // Enter road from side
+          currentState = TURN_RIGHT_TO_ROAD;
+          break;
+    
+        case TURN_RIGHT_TO_ROAD:
+          turnRight(120,90); // Align with road direction
+          currentState = CHECK_FORWARD_AFTER_TURN;
+          break;
+    
+        case CHECK_FORWARD_AFTER_TURN:
+          VL53L0X_RangingMeasurementData_t measure;
+          lox.rangingTest(&measure, false);
+          if (measure.RangeMilliMeter < 110) { // Obstacle detected right after turn
+            currentState = ZIG_ZAG_LEFT; // Start zigzag maneuver
+          } else {
+            currentState = MOVE_FORWARD_ON_ROAD;
+          }
+          break;
+    
+        case MOVE_FORWARD_ON_ROAD:{
+          int dist =0;
+          moveForward(90, dist);
+          distance += dist;
+          currentState = lastTurnLeft ? ZIG_ZAG_RIGHT : ZIG_ZAG_LEFT;
+          break;
         }
-        break;
-  
-      case MOVE_FORWARD_ON_ROAD:{
-        int dist =0;
-        moveForward(90, dist);
-        distance += dist;
-        currentState = lastTurnLeft ? ZIG_ZAG_RIGHT : ZIG_ZAG_LEFT;
-        break;
-      }
-  
-      case ZIG_ZAG_LEFT:{
-        turnLeft(120,90);
-        moveForward(90,30); // Move diagonally left
-        turnRight(120,90); // Return to road direction
-        lastTurnLeft = true;
-        currentState = MOVE_FORWARD_ON_ROAD;
-        break;
-      }
-  
-      case ZIG_ZAG_RIGHT:{
-        turnRight(120,90);
-        moveForward(90,30); // Move diagonally right
-        turnLeft(120,90); // Return to road direction
-        lastTurnLeft = false;
-        currentState = MOVE_FORWARD_ON_ROAD;
-        break;
+    
+        case ZIG_ZAG_LEFT:{
+          turnLeft(120,90);
+          moveForward(90,30); // Move diagonally left
+          turnRight(120,90); // Return to road direction
+          lastTurnLeft = true;
+          currentState = MOVE_FORWARD_ON_ROAD;
+          break;
+        }
+    
+        case ZIG_ZAG_RIGHT:{
+          turnRight(120,90);
+          moveForward(90,30); // Move diagonally right
+          turnLeft(120,90); // Return to road direction
+          lastTurnLeft = false;
+          currentState = MOVE_FORWARD_ON_ROAD;
+          break;
+        }
       }
     }
-  }
-  else{
-    moveForwardLong(120); // Move forward to finish line
-    delay(500);
+    else{
+      moveForwardLong(120); // Move forward to finish line
+      delay(500);
+    }
   }
   
 
