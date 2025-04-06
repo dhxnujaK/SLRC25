@@ -675,9 +675,9 @@ bool lastTurnLeft = false;
 bool is_run = false;
 
 void loop() {
-/*   static int loopCount = 0;
+  static int loopCount = 0;
 
-  if (loopCount < 5) {
+  while (loopCount < 5) {
     // Original loop behavior
     turnLeft(120, 90);
     delay(500);
@@ -688,13 +688,12 @@ void loop() {
     moveUntillGreen(90);
     delay(1000);
     loopCount++;
-  } */
+  } 
   if(!is_run) {
     turnLeft(120, 90);
     is_run = true;
   }
   
-
   switch (currentState) {
     case INIT_ENTRY:
       moveForward(90,30); // Enter road from side
