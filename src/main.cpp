@@ -720,7 +720,6 @@ void loop() {
 
   if(!calibrationMode) {
     while (loopCount < 5) {
-      if(taskMode){
         // Original loop behavior
       turnLeft(120, 90);
       delay(500);
@@ -731,7 +730,6 @@ void loop() {
       moveUntillGreen(90);
       delay(1000);
       loopCount++;
-      }
     } 
     if(!is_run) {
       turnLeft(120, 90);
